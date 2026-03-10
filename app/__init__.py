@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, MetaData
+from config import settings
 from sqlalchemy.orm import sessionmaker
 
-engine = create_engine("sqlite:///dev.db")
+engine = create_engine(settings.DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 metadata = MetaData()
 
