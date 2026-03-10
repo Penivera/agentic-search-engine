@@ -1,8 +1,12 @@
 import os
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, SettingsConfigDict
 
-class Config(BaseSettings):
+class Settings(BaseSettings):
+    # Allow extra keys in .env without crashing
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    DB_URL: str = Field(..., description="Database connection URL")
     DATABASE_URL: str = Field(default="sqlite:///dev.db", env="DATABASE_URL")
 
     @property
