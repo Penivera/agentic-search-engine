@@ -3,9 +3,7 @@ from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, func, Float, JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID, ARRAY
-
-class Base(DeclarativeBase):
-    pass
+from app.db.session import Base 
 
 class Platform(Base):
     __tablename__ = 'platforms'

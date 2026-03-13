@@ -1,3 +1,4 @@
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import MetaData
 from app.core.config import settings
@@ -13,6 +14,10 @@ elif db_url.startswith("postgres"):
 engine = create_async_engine(db_url)
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine, class_=AsyncSession)
 metadata = MetaData()
+
+class Base(DeclarativeBase):
+    pass
+
 
 async def init_db():
     from app.models.database import Base
