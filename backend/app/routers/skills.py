@@ -52,3 +52,35 @@ async def create_skill(
         "capabilities": db_skill.capabilities,
         "message": "Skill ingested successfully"
     }
+
+
+@router.get("/{platform_id}")
+async def get_skill(
+    platform_id: str,
+    session: SessionDep
+) -> dict[str, Any]:
+    """
+    Retrieve the full skill capabilities for a specific platform.
+    Used by agents to 'go deeper' after a discovery search.
+    """
+    try:
+        platform_uuid = uuid.UUID(platform_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid platform_id format")
+
+    result = await session.execute(
+        select(SkillEmbedding).filter(SkillEmbedding.platform_id == platform_uuid)
+    )
+    skill = result.scalars().first()
+    
+    if not skill:
+        return {
+            "status": "not_found",
+            "message": "We do not have a skill file for this platform yet. You can request it to be indexed via the /platforms endpoint."
+        }
+
+    return {
+        "platform_id": str(skill.platform_id),
+        "capabilities": skill.capabilities,
+        "created_at": skill.created_at.isoformat()
+    }

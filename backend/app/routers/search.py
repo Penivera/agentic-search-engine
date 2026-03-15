@@ -24,14 +24,19 @@ async def search_skills(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate query embedding: {e}")
 
-    result = await session.execute(select(SkillEmbedding))
-    skills = result.scalars().all()
+    from app.models.database import Platform
     
-    if not skills:
-        raise HTTPException(status_code=404, detail="No skills found in the database.")
+    result = await session.execute(
+        select(SkillEmbedding, Platform)
+        .join(Platform, SkillEmbedding.platform_id == Platform.id)
+    )
+    results = result.all()
+    
+    if not results:
+        return []
 
     matches = []
-    for skill in skills:
+    for skill, platform in results:
         # SQLite storage uses JSON, Postgres array
         if isinstance(skill.dimension, str):
             skill_vector = np.array(json.loads(skill.dimension))
@@ -42,9 +47,11 @@ async def search_skills(
             np.linalg.norm(query_embedding) * np.linalg.norm(skill_vector)
         )
         matches.append({
+            "platform_name": platform.name,
+            "platform_description": platform.description,
+            "platform_id": str(platform.id),
             "skill": skill.capabilities,
-            "similarity": float(similarity),
-            "platform_id": str(skill.platform_id)
+            "similarity": float(similarity)
         })
 
     matches = sorted(matches, key=lambda x: x["similarity"], reverse=True)[:top_k]

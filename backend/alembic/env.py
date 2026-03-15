@@ -4,10 +4,11 @@ from sqlalchemy import pool
 from alembic import context
 import sys
 sys.path.append('.')
-from api.schemas.database import Base
+from app.models.database import Base
 
 config = context.config
-fileConfig(config.config_file_name)
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 
