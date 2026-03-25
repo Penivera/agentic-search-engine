@@ -22,12 +22,20 @@ async def search_skills(
     top_k: Annotated[
         int, Query(ge=1, le=50, description="Number of top matching skills to return")
     ] = 5,
+    min_similarity: Annotated[
+        float,
+        Query(
+            ge=0.0,
+            le=1.0,
+            description="Minimum cosine similarity required for a result to be returned",
+        ),
+    ] = 0.74,
 ) -> list[dict[str, Any]]:
     """
     Search for skills based on a query, using embeddings for semantic similarity.
     """
     started_at = time.perf_counter()
-    cache_key = f"{query.strip().lower()}::{top_k}"
+    cache_key = f"{query.strip().lower()}::{top_k}::{min_similarity:.3f}"
     cached = search_cache.get(cache_key)
     if cached is not None:
         latency_ms = (time.perf_counter() - started_at) * 1000
@@ -130,6 +138,7 @@ async def search_skills(
             }
         )
 
+    matches = [m for m in matches if m["similarity"] >= min_similarity]
     matches = sorted(matches, key=lambda x: x["similarity"], reverse=True)[:top_k]
     search_cache.set(cache_key, matches)
 

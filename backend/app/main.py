@@ -3,8 +3,11 @@ from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 from fastapi import FastAPI
+from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.responses import PlainTextResponse
+from sqlalchemy.exc import SQLAlchemyError
 from app.db.session import get_db_startup_error, init_db, record_db_startup_error
 from app.routers import api_router
 from app.core.config import settings
@@ -43,6 +46,17 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def handle_sqlalchemy_error(
+    request: Request, exc: SQLAlchemyError
+) -> JSONResponse:
+    logger.exception("Database error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database temporarily unavailable. Please retry."},
+    )
 
 
 @app.get("/")

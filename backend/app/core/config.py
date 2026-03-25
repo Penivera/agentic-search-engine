@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_EXPIRE_MINUTES: int = Field(default=60 * 24 * 7)
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
+    AUTH_REQUIRE_OTP: bool = Field(default=False)
     OTP_EXPIRE_MINUTES: int = Field(default=10)
     OTP_DEBUG_EXPOSE_CODE: bool = Field(default=True)
     SMTP_HOST: str = Field(default="")

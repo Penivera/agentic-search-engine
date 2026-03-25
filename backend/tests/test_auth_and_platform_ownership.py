@@ -6,6 +6,7 @@ import pytest
 
 from app.db.session import init_db
 from app.main import app
+from app.core.config import settings
 from app.services import auth_tokens
 
 
@@ -42,6 +43,9 @@ def _register_user(
     )
     assert register_response.status_code == 200
     register_data = register_response.json()
+    if register_data.get("access_token"):
+        return register_data
+
     assert register_data.get("verification_required") is True
     assert "dev_otp" in register_data
 
@@ -102,7 +106,10 @@ def test_login_requires_verified_user():
             "/api/auth/login",
             json={"email": email, "password": "password123"},
         )
-        assert login_response.status_code == 403
+        if settings.AUTH_REQUIRE_OTP:
+            assert login_response.status_code == 403
+        else:
+            assert login_response.status_code == 200
 
 
 def test_platform_create_requires_auth(monkeypatch):

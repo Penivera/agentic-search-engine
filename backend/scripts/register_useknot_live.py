@@ -35,7 +35,10 @@ def main() -> int:
 
     token = None
     register_json = _json_or_none(register)
+    token = register_json.get("access_token") if register_json else None
     otp = register_json.get("dev_otp") if register_json else None
+    if token:
+        print("REGISTER_RETURNED_TOKEN", True)
     if otp:
         for attempt in range(1, 31):
             verify = session.post(

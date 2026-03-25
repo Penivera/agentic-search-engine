@@ -15,9 +15,26 @@ elif db_url.startswith("postgres"):
         "postgresql://", "postgresql+asyncpg://"
     )
 
-engine = create_async_engine(db_url)
+engine_kwargs: dict[str, object] = {}
+if db_url.startswith("postgresql+asyncpg://"):
+    # Keep asyncpg connections healthy across short network drops on cloud hosts.
+    engine_kwargs.update(
+        {
+            "pool_pre_ping": True,
+            "pool_recycle": 1800,
+            "pool_size": 5,
+            "max_overflow": 10,
+            "pool_timeout": 30,
+        }
+    )
+
+engine = create_async_engine(db_url, **engine_kwargs)
 SessionLocal = async_sessionmaker(
-    autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    bind=engine,
+    class_=AsyncSession,
 )
 metadata = MetaData()
 
@@ -33,7 +50,13 @@ async def init_db():
 
     _db_startup_error = None
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except Exception as exc:
+            # Concurrent replicas can race on CREATE TABLE during startup.
+            msg = str(exc).lower()
+            if not ("duplicate" in msg or "already exists" in msg):
+                raise
         await conn.run_sync(_ensure_users_columns)
         await conn.run_sync(_ensure_platforms_columns)
         await conn.run_sync(_ensure_skills_embeddings_columns)

@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 import jwt
 
 from app.core.config import settings
@@ -107,12 +108,30 @@ async def register_user(
     payload: RegisterRequest, session: SessionDep
 ) -> dict[str, Any]:
     normalized_email = payload.email.lower()
-    existing = await session.execute(
-        select(User).filter(User.email == normalized_email)
-    )
-    user = existing.scalars().first()
+    user = None
+    for attempt in range(2):
+        try:
+            existing = await session.execute(
+                select(User).filter(User.email == normalized_email)
+            )
+            user = existing.scalars().first()
+            break
+        except DBAPIError:
+            await session.rollback()
+            if attempt == 1:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please retry.",
+                )
+        except SQLAlchemyError:
+            await session.rollback()
+            if attempt == 1:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please retry.",
+                )
 
-    if user and user.is_verified:
+    if user and user.is_verified and settings.AUTH_REQUIRE_OTP:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Email is already registered",
@@ -121,20 +140,62 @@ async def register_user(
     if user:
         # Allow re-register for unverified accounts and rotate password hash.
         user.password_hash = _build_password_hash(payload.password)
-        user.is_verified = False
-        user.verified_at = None
+        user.is_verified = not settings.AUTH_REQUIRE_OTP
+        user.verified_at = (
+            datetime.now(timezone.utc).replace(tzinfo=None)
+            if not settings.AUTH_REQUIRE_OTP
+            else None
+        )
     else:
         user = User(
             email=normalized_email,
             password_hash=_build_password_hash(payload.password),
-            is_verified=False,
-            verified_at=None,
+            is_verified=not settings.AUTH_REQUIRE_OTP,
+            verified_at=(
+                datetime.now(timezone.utc).replace(tzinfo=None)
+                if not settings.AUTH_REQUIRE_OTP
+                else None
+            ),
         )
         session.add(user)
 
-    await session.commit()
-    otp_code = await _issue_and_store_otp(normalized_email)
+    await session.flush()
+    user_id = str(user.id)
+    user_email = user.email
 
+    for attempt in range(2):
+        try:
+            await session.commit()
+            break
+        except DBAPIError:
+            await session.rollback()
+            if attempt == 1:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please retry.",
+                )
+        except SQLAlchemyError:
+            await session.rollback()
+            if attempt == 1:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please retry.",
+                )
+    if not settings.AUTH_REQUIRE_OTP:
+        token, expires_at = create_access_token(user_id, user_email)
+        return {
+            "message": "Registered successfully",
+            "verification_required": False,
+            "access_token": token,
+            "token_type": "bearer",
+            "expires_at": expires_at.isoformat(),
+            "user": {
+                "id": user_id,
+                "email": user_email,
+            },
+        }
+
+    otp_code = await _issue_and_store_otp(normalized_email)
     return _otp_response_base(normalized_email, otp_code)
 
 
@@ -209,7 +270,7 @@ async def login_user(payload: LoginRequest, session: SessionDep) -> dict[str, An
             detail="Invalid email or password",
         )
 
-    if not user.is_verified:
+    if settings.AUTH_REQUIRE_OTP and not user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Verify OTP first.",

@@ -22,6 +22,14 @@ API prefix for product routes: `/api`
 - Product short name: `ASE`
 - Product full name: `Agentic Search Engine`
 
+
+
+## Recent Update Log
+
+- 2026-03-25: Auth registration supports no-OTP mode with immediate token issuance when OTP requirement is disabled.
+- 2026-03-25: Startup resilience improved for DB initialization and transient DB failures now return controlled service-unavailable behavior.
+- 2026-03-25: Search now supports minimum similarity filtering via `min_similarity` (default `0.74`) to reduce irrelevant nearest-neighbor matches.
+
 ## Decision Rules For Agents
 
 - Use `GET /api/search/` when you need the best platform for a capability.
