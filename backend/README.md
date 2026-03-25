@@ -19,11 +19,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+Default installation is lightweight and does not include PyTorch/transformer dependencies.
+
 Optional (real transformer embeddings instead of deterministic fallback):
 
 ```bash
 pip install sentence-transformers==2.7.0
 ```
+
+Public skill document endpoint:
+
+```bash
+curl -s http://localhost:8000/skill.md
+```
+
+This route returns the latest indexed skill as markdown, or a fallback markdown document when no skills are indexed yet.
 
 Open docs at `/docs`.
 

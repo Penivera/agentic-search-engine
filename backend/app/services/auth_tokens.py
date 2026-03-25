@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+import logging
 import secrets
 from typing import Any
 
@@ -13,6 +14,23 @@ from app.core.config import settings
 
 
 _redis_client: Redis | None = None
+_otp_fallback_store: dict[str, tuple[str, int]] = {}
+_blacklist_fallback_store: dict[str, int] = {}
+logger = logging.getLogger(__name__)
+
+
+def _unix_now() -> int:
+    return int(datetime.now(timezone.utc).timestamp())
+
+
+def _purge_expired_fallbacks() -> None:
+    now = _unix_now()
+    for key, (_, expires_at) in list(_otp_fallback_store.items()):
+        if expires_at <= now:
+            _otp_fallback_store.pop(key, None)
+    for key, expires_at in list(_blacklist_fallback_store.items()):
+        if expires_at <= now:
+            _blacklist_fallback_store.pop(key, None)
 
 
 def get_redis_client() -> Redis:
@@ -59,13 +77,36 @@ def generate_otp_code(length: int = 6) -> str:
 
 
 async def store_verification_otp(email: str, otp_code: str, ttl_seconds: int) -> None:
-    redis = get_redis_client()
-    await redis.setex(_otp_key(email), ttl_seconds, _hash_otp(email, otp_code))
+    key = _otp_key(email)
+    value = _hash_otp(email, otp_code)
+    try:
+        redis = get_redis_client()
+        await redis.setex(key, ttl_seconds, value)
+        return
+    except Exception:
+        logger.warning("Redis unavailable while storing OTP; using in-memory fallback")
+
+    _purge_expired_fallbacks()
+    _otp_fallback_store[key] = (value, _unix_now() + ttl_seconds)
 
 
 async def verify_stored_otp(email: str, otp_code: str) -> bool:
-    redis = get_redis_client()
-    stored = await redis.get(_otp_key(email))
+    key = _otp_key(email)
+    stored = None
+
+    try:
+        redis = get_redis_client()
+        stored = await redis.get(key)
+    except Exception:
+        logger.warning(
+            "Redis unavailable while verifying OTP; using in-memory fallback"
+        )
+
+    if stored is None:
+        _purge_expired_fallbacks()
+        fallback = _otp_fallback_store.get(key)
+        stored = fallback[0] if fallback else None
+
     if not stored:
         return False
 
@@ -74,8 +115,14 @@ async def verify_stored_otp(email: str, otp_code: str) -> bool:
 
 
 async def clear_verification_otp(email: str) -> None:
-    redis = get_redis_client()
-    await redis.delete(_otp_key(email))
+    key = _otp_key(email)
+    try:
+        redis = get_redis_client()
+        await redis.delete(key)
+    except Exception:
+        logger.warning("Redis unavailable while clearing OTP; using in-memory fallback")
+
+    _otp_fallback_store.pop(key, None)
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
@@ -87,13 +134,35 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
 
 async def blacklist_token(jti: str, expires_at_unix: int) -> None:
-    now = int(datetime.now(timezone.utc).timestamp())
+    now = _unix_now()
     ttl_seconds = max(1, expires_at_unix - now)
-    redis = get_redis_client()
-    await redis.setex(f"jwt:blacklist:{jti}", ttl_seconds, "1")
+    key = f"jwt:blacklist:{jti}"
+    try:
+        redis = get_redis_client()
+        await redis.setex(key, ttl_seconds, "1")
+        return
+    except Exception:
+        logger.warning(
+            "Redis unavailable while blacklisting JWT; using in-memory fallback"
+        )
+
+    _purge_expired_fallbacks()
+    _blacklist_fallback_store[key] = now + ttl_seconds
 
 
 async def is_token_blacklisted(jti: str) -> bool:
-    redis = get_redis_client()
-    value = await redis.get(f"jwt:blacklist:{jti}")
-    return value is not None
+    key = f"jwt:blacklist:{jti}"
+
+    try:
+        redis = get_redis_client()
+        value = await redis.get(key)
+        if value is not None:
+            return True
+    except Exception:
+        logger.warning(
+            "Redis unavailable while checking JWT blacklist; using in-memory fallback"
+        )
+
+    _purge_expired_fallbacks()
+    expires_at = _blacklist_fallback_store.get(key)
+    return expires_at is not None and expires_at > _unix_now()

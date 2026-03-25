@@ -69,10 +69,12 @@ async def _issue_and_store_otp(email: str) -> str:
     try:
         await send_verification_otp_email(email, otp_code)
     except EmailDeliveryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Failed to deliver OTP email: {exc}",
-        )
+        # Keep local/dev and debug deployments usable when SMTP is unavailable.
+        if not settings.OTP_DEBUG_EXPOSE_CODE:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Failed to deliver OTP email: {exc}",
+            )
 
     return otp_code
 

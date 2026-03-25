@@ -70,3 +70,14 @@ def test_skills_api_contract_end_to_end():
         assert fetched.json()["id"] == skill_id
 
     app.dependency_overrides = {}
+
+
+def test_public_skill_md_endpoint_returns_markdown():
+    asyncio.run(init_db())
+
+    with TestClient(app) as client:
+        response = client.get("/skill.md")
+
+    assert response.status_code == 200
+    assert "text/markdown" in response.headers.get("content-type", "")
+    assert response.text.strip().startswith("#")
