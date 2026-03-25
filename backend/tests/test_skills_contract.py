@@ -80,4 +80,5 @@ def test_public_skill_md_endpoint_returns_markdown():
 
     assert response.status_code == 200
     assert "text/markdown" in response.headers.get("content-type", "")
-    assert response.text.strip().startswith("#")
+    body = response.text.strip()
+    assert body.startswith("#") or body.startswith("---")

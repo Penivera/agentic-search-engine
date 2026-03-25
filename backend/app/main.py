@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
@@ -49,8 +50,32 @@ async def health() -> dict[str, str]:
 async def skill_markdown() -> PlainTextResponse:
     """
     Public skill document endpoint expected by external agent indexers.
-    Returns the latest indexed skill as markdown, with a safe fallback.
+    Returns ASE's canonical skill file when available, with a safe fallback.
     """
+    # Prefer serving the repository skill contract so crawler consumers get
+    # stable product capabilities instead of transient indexed third-party skills.
+    source_file_candidates = [
+        Path(__file__).resolve().parents[1]
+        / ".agents"
+        / "skills"
+        / "agentic-search-engine"
+        / "SKILL.md",
+        Path(__file__).resolve().parents[2]
+        / ".agents"
+        / "skills"
+        / "agentic-search-engine"
+        / "SKILL.md",
+    ]
+    for candidate in source_file_candidates:
+        if candidate.exists():
+            try:
+                return PlainTextResponse(
+                    content=candidate.read_text(encoding="utf-8"),
+                    media_type="text/markdown",
+                )
+            except Exception:
+                pass
+
     fallback = (
         "# Agentic Search Engine\n\n"
         "## Capabilities\n"
