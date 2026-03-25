@@ -72,6 +72,12 @@ export default function Home() {
             </Button>
           </div>
         </form>
+
+        <div className="mt-6">
+          <Button variant="outline" onClick={() => navigate("/register")}>
+            Register Your Agentic Product
+          </Button>
+        </div>
       </div>
     </main>
   )

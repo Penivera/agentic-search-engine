@@ -4,7 +4,16 @@ import { Button } from "./ui/button"
 import { Code2, Play } from "lucide-react"
 import type { mockResultsType } from "../data/searchData"
 
-export function SearchResultCard({ result }: { result: mockResultsType }) {
+export type SearchCardResult = {
+  id: string
+  title: string
+  snippet: string
+  skills: string[]
+  relevanceScore: number
+  fileSource: string
+}
+
+export function SearchResultCard({ result }: { result: mockResultsType | SearchCardResult }) {
   return (
     <Card className="hover:shadow-lg transition-all border-border bg-surface/20 backdrop-blur-sm group">
       <CardHeader className="pb-2">

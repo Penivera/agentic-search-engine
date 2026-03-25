@@ -124,6 +124,9 @@ export default function SearchResults() {
             {results.length === 0 && initialQuery && (
               <div className="text-center py-20 border-2 border-dashed border-border rounded-3xl">
                 <p className="text-muted">No agents found for that query.</p>
+                <Button className="mt-4" variant="outline" onClick={() => navigate("/register")}>
+                  Register a Product
+                </Button>
               </div>
             )}
 

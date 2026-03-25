@@ -160,3 +160,47 @@ async def ingest_platform_skills(
     )
 
     return {"message": "Ingestion task queued.", "platform_id": str(platform.id)}
+
+
+@router.get("")
+@router.get("/")
+async def list_platforms(session: SessionDep) -> list[dict[str, Any]]:
+    result = await session.execute(select(Platform).order_by(Platform.created_at.desc()))
+    platforms = result.scalars().all()
+    return [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "url": p.url,
+            "homepage_uri": p.homepage_uri,
+            "skills_url": p.skills_url,
+            "description": p.description,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in platforms
+    ]
+
+
+@router.get("/{platform_id}")
+async def get_platform(platform_id: str, session: SessionDep) -> dict[str, Any]:
+    import uuid
+
+    try:
+        platform_uuid = uuid.UUID(platform_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid platform_id format")
+
+    result = await session.execute(select(Platform).filter(Platform.id == platform_uuid))
+    platform = result.scalars().first()
+    if not platform:
+        raise HTTPException(status_code=404, detail="Platform not found")
+
+    return {
+        "id": str(platform.id),
+        "name": platform.name,
+        "url": platform.url,
+        "homepage_uri": platform.homepage_uri,
+        "skills_url": platform.skills_url,
+        "description": platform.description,
+        "created_at": platform.created_at.isoformat() if platform.created_at else None,
+    }

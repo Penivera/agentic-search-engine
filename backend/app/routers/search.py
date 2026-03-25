@@ -4,12 +4,14 @@ from sqlalchemy import select
 import json
 import numpy as np
 import time
+import logging
 
 from app.core.deps import SessionDep, VectorizerDep
 from app.models.database import QueryLog, SkillEmbedding
 from app.services.search_cache import search_cache
 
 router = APIRouter(prefix="/search", tags=["search"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/")
@@ -60,6 +62,8 @@ async def search_skills(
         return []
 
     matches = []
+    query_dim = len(query_embedding)
+    repaired_embeddings = 0
     for skill, platform in results:
         text_for_match = "\n".join(
             x
@@ -70,11 +74,33 @@ async def search_skills(
             ]
             if x
         )
-        # SQLite storage uses JSON, Postgres array
-        if isinstance(skill.dimension, str):
-            skill_vector = np.array(json.loads(skill.dimension))
-        else:
-            skill_vector = np.array(skill.dimension)
+        # SQLite storage uses JSON, Postgres array.
+        try:
+            if isinstance(skill.dimension, str):
+                raw_dimension = json.loads(skill.dimension)
+            else:
+                raw_dimension = skill.dimension
+            skill_vector = np.array(raw_dimension, dtype=float)
+        except Exception:
+            logger.warning("Skipping skill %s due to invalid embedding payload", skill.id)
+            continue
+
+        # Repair legacy/invalid vectors on-the-fly so search does not fail.
+        if skill_vector.ndim != 1 or len(skill_vector) != query_dim:
+            if text_for_match.strip():
+                try:
+                    repaired_vector = vectorizer.generate_embeddings([text_for_match])[0]
+                    skill.dimension = repaired_vector
+                    skill_vector = np.array(repaired_vector, dtype=float)
+                    repaired_embeddings += 1
+                except Exception:
+                    logger.warning(
+                        "Skipping skill %s due to unrecoverable embedding dimension mismatch",
+                        skill.id,
+                    )
+                    continue
+            else:
+                continue
 
         query_norm = np.linalg.norm(query_embedding)
         skill_norm = np.linalg.norm(skill_vector)
@@ -102,6 +128,9 @@ async def search_skills(
 
     matches = sorted(matches, key=lambda x: x["similarity"], reverse=True)[:top_k]
     search_cache.set(cache_key, matches)
+
+    if repaired_embeddings:
+        await session.commit()
 
     latency_ms = (time.perf_counter() - started_at) * 1000
     session.add(
