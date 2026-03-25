@@ -22,14 +22,6 @@ API prefix for product routes: `/api`
 - Product short name: `ASE`
 - Product full name: `Agentic Search Engine`
 
-
-
-## Recent Update Log
-
-- 2026-03-25: Auth registration supports no-OTP mode with immediate token issuance when OTP requirement is disabled.
-- 2026-03-25: Startup resilience improved for DB initialization and transient DB failures now return controlled service-unavailable behavior.
-- 2026-03-25: Search now supports minimum similarity filtering via `min_similarity` (default `0.74`) to reduce irrelevant nearest-neighbor matches.
-
 ## Decision Rules For Agents
 
 - Use `GET /api/search/` when you need the best platform for a capability.
@@ -74,6 +66,7 @@ Query params:
 
 - `query`: string, required
 - `top_k`: integer, optional, range `1..50`, default `5`
+- `min_similarity`: float, optional, range `0..1`, default `0.74`
 
 Top result fields include:
 
@@ -187,6 +180,10 @@ Body:
 ### Template: Search
 
 `GET /api/search/?query=jupiter%20token%20swap&top_k=5`
+
+To enforce stricter relevance filtering:
+
+`GET /api/search/?query=shopping%20mall&top_k=5&min_similarity=0.80`
 
 ### Template: Get Latest Skill For Platform
 
