@@ -1,20 +1,29 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import select
-from app.db.session import init_db
+from app.db.session import get_db_startup_error, init_db, record_db_startup_error
 from app.routers import api_router
 from app.core.config import settings
-from app.db.session import SessionLocal
-from app.models.database import Platform, SkillEmbedding
+
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    await init_db()
+    app.state.db_ready = False
+    try:
+        await init_db()
+        app.state.db_ready = True
+    except Exception as exc:
+        record_db_startup_error(exc)
+        logger.exception(
+            "Database init failed during startup. Continuing in degraded mode."
+        )
     yield
 
 
@@ -42,8 +51,15 @@ async def root() -> dict[str, str]:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok", "database": settings.db_type}
+async def health() -> dict[str, str | bool | None]:
+    db_error = get_db_startup_error()
+    status = "ok" if app.state.db_ready else "degraded"
+    return {
+        "status": status,
+        "database": settings.db_type,
+        "database_ready": app.state.db_ready,
+        "database_error": db_error,
+    }
 
 
 @app.get("/skill.md", include_in_schema=False)
@@ -77,42 +93,13 @@ async def skill_markdown() -> PlainTextResponse:
                 pass
 
     fallback = (
-        "# Agentic Search Engine\n\n"
+        "# ASE (Agentic Search Engine) Skill\n\n"
         "## Capabilities\n"
-        "- Semantic search over indexed platform skills\n"
-        "- Platform and skill registration APIs\n"
-        "- JWT auth, ownership, and OTP-based verification\n"
+        "- Discover platforms by semantic capability search\n"
+        "- Register platforms and ingest external skill documents\n"
+        "- Retrieve latest indexed skill content per platform\n"
     )
-
-    try:
-        async with SessionLocal() as session:
-            result = await session.execute(
-                select(SkillEmbedding, Platform)
-                .join(Platform, SkillEmbedding.platform_id == Platform.id)
-                .order_by(SkillEmbedding.created_at.desc())
-                .limit(1)
-            )
-            row = result.first()
-    except Exception:
-        row = None
-
-    if not row:
-        return PlainTextResponse(content=fallback, media_type="text/markdown")
-
-    skill, platform = row
-    title = skill.skill_name or platform.name or "Agentic Search Engine"
-    tags = skill.tags or []
-    tag_line = f"\nTags: {', '.join(tags)}\n" if tags else ""
-    markdown = (
-        f"# {title}\n\n"
-        f"Platform: {platform.name}\n"
-        f"Platform URL: {platform.url}\n"
-        f"Skill URL: {platform.skills_url or '/skill.md'}\n"
-        f"{tag_line}\n"
-        "## Capabilities\n"
-        f"{skill.capabilities.strip()}\n"
-    )
-    return PlainTextResponse(content=markdown, media_type="text/markdown")
+    return PlainTextResponse(content=fallback, media_type="text/markdown")
 
 
 # Register API routes

@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import MetaData, inspect, text
 from app.core.config import settings
 
+_db_startup_error: str | None = None
+
 # Modify the URL for async dialects dynamically if needed,
 # assuming SQLite local by default and Postgres on prod
 db_url = settings.DATABASE_URL
@@ -25,13 +27,25 @@ class Base(DeclarativeBase):
 
 
 async def init_db():
+    global _db_startup_error
+
     from app.models.database import Base
 
+    _db_startup_error = None
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_users_columns)
         await conn.run_sync(_ensure_platforms_columns)
         await conn.run_sync(_ensure_skills_embeddings_columns)
+
+
+def record_db_startup_error(exc: Exception) -> None:
+    global _db_startup_error
+    _db_startup_error = f"{type(exc).__name__}: {exc}"
+
+
+def get_db_startup_error() -> str | None:
+    return _db_startup_error
 
 
 def _ensure_users_columns(sync_conn) -> None:
