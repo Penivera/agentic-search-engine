@@ -1,110 +1,198 @@
 ---
 name: agentic-search-engine
-description: Discover and publish AI-agent capabilities via semantic search, platform indexing, and skill ingestion APIs.
+description: Integration guide for AI agents to discover, publish, and ingest platform skills using the ASE (Agentic Search Engine) API.
 ---
 
-# Agentic Search Engine Integration Skill
+# ASE (Agentic Search Engine) Skill
 
-Use this skill when an AI agent needs to:
+Use this skill to integrate an AI agent with ASE (Agentic Search Engine) for:
 
-- Discover platforms by capability (semantic search)
-- Publish a platform and its skill document
-- Ingest/update skill content for indexing
+- Capability discovery across indexed platforms
+- Publishing platform metadata and skill sources
+- Triggering skill ingestion and verifying indexed output
 
-## Service Endpoints
+## Base URLs
 
-- Production: `https://api.ase.penivera.me`
-- FastAPI Cloud deployment: `https://ase-f1e2b8fd.fastapicloud.dev`
-- Local: `http://localhost:8000`
+- Primary deployment: `https://ase-f1e2b8fd.fastapicloud.dev`
 
-API prefix: `/api`
 
-## Authentication Model
+API prefix for product routes: `/api`
 
-Two auth modes are used:
+## Product Identity
 
-- User JWT (`Authorization: Bearer <jwt>`) for platform ownership routes.
-- Optional ingest token list for skill ingest routes when enabled by server config.
+- Product short name: `ASE`
+- Product full name: `Agentic Search Engine`
 
-Primary JWT flow:
+## Decision Rules For Agents
 
-1. `POST /api/auth/register`
-2. `POST /api/auth/verify-otp`
-3. Use returned `access_token`
+- Use `GET /api/search/` when you need the best platform for a capability.
+- Use `POST /api/platforms/` when you are onboarding a new platform.
+- Use `POST /api/platforms/{platform_id}/ingest` when a `skills_url` changed or indexing is stale.
+- Use `GET /api/skills/by-platform/{platform_id}` to retrieve the latest indexed skill text.
+- Use `GET /skill.md` only when a crawler needs a public markdown capability document.
 
-## Core Operations
+## Authentication
 
-### 1) Publish Platform
+JWT is required for owner routes.
+
+Standard auth flow:
+
+1. `POST /api/auth/register` with `email` and `password`
+2. `POST /api/auth/verify-otp` with `email` and `otp_code`
+3. Use returned `access_token` as `Authorization: Bearer <token>`
+
+Notes:
+
+- `POST /api/skills/` also accepts ingest-token auth when server ingest tokens are configured.
+- `PUT /api/platforms/{platform_id}` is owner-restricted.
+
+## Recommended Agent Workflow
+
+1. Search:
+   `GET /api/search/?query=<intent>&top_k=5`
+2. Select highest-similarity candidate.
+3. Fetch details:
+   `GET /api/skills/by-platform/{platform_id}`
+4. If missing or outdated, request refresh:
+   `POST /api/platforms/{platform_id}/ingest?skills_url=<optional_override>`
+5. Poll `GET /api/skills/by-platform/{platform_id}` until status `200`.
+
+## Endpoint Contracts
+
+### Search
+
+`GET /api/search/`
+
+Query params:
+
+- `query`: string, required
+- `top_k`: integer, optional, range `1..50`, default `5`
+
+Top result fields include:
+
+- `platform_id`
+- `platform_name`
+- `platform_description`
+- `skill_id`
+- `skill_name`
+- `tags`
+- `similarity`
+- `skill_md_url`
+
+### Platform Publish
 
 `POST /api/platforms/` (JWT required)
 
-Request:
+Example payload:
 
 ```json
 {
   "name": "Knot",
   "url": "https://www.useknot.xyz/",
   "homepage_uri": "https://www.useknot.xyz/",
-  "description": "The autonomous wallet for AI agents on Solana. TEE-secured keys, Jupiter trading, policy controls. No private keys exposed.",
+  "description": "The autonomous wallet for AI agents on Solana.",
   "skills_url": "https://api.useknot.xyz/skill.md"
 }
 ```
 
-### 2) Trigger/Re-trigger Ingestion
+### Platform Ingest
 
 `POST /api/platforms/{platform_id}/ingest`
 
 Optional query param:
 
-- `skills_url` (string): one-time override source for skill content.
+- `skills_url`: temporary source override for this ingest task
 
-### 3) Register Skill Directly
+### Direct Skill Upsert
 
 `POST /api/skills/`
 
-Request:
+Example payload:
 
 ```json
 {
   "platform_id": "<uuid>",
-  "capabilities": "Capability text for embedding and retrieval.",
-  "skill_name": "Optional display name",
-  "tags": ["optional", "tags"]
+  "capabilities": "Capability text for embedding.",
+  "skill_name": "Optional name",
+  "tags": ["optional", "keywords"]
 }
 ```
 
-### 4) Discover Platforms by Capability
+### Skill Reads
 
-`GET /api/search/?query=<text>&top_k=<1..50>`
+- `GET /api/skills/by-platform/{platform_id}` for latest platform skill
+- `GET /api/skills/{skill_id}` for a specific skill record
 
-Key response fields:
+## Ready-To-Run Request Templates
 
-- `platform_id`
-- `platform_name`
-- `skill_id`
-- `similarity`
-- `skill_md_url`
+Use these templates directly in tool-calling agents.
 
-### 5) Retrieve Indexed Skill Content
+### Template: Register User
 
-- `GET /api/skills/by-platform/{platform_id}` (latest skill for platform)
-- `GET /api/skills/{skill_id}` (specific skill document)
+`POST /api/auth/register`
 
-## Agent Usage Pattern (Recommended)
+```json
+{
+   "email": "owner@example.com",
+   "password": "StrongPassword123!"
+}
+```
 
-1. Search first with `GET /api/search/`.
-2. Pick high-similarity results.
-3. Resolve details via `GET /api/skills/by-platform/{platform_id}`.
-4. If missing/outdated, request ingestion for that platform.
+### Template: Verify OTP
 
-## Operational Notes
+`POST /api/auth/verify-otp`
 
-- `skills_url` should point to a stable markdown capability document.
-- Ingestion is asynchronous; polling may be required before skill content appears.
-- `PUT /api/platforms/{platform_id}` is owner-restricted.
+```json
+{
+   "email": "owner@example.com",
+   "otp_code": "123456"
+}
+```
 
-## Public Capability Document
+### Template: Publish Platform
 
-- `GET /skill.md`
+`POST /api/platforms/`
 
-This endpoint returns a markdown skill document for agent crawlers and registries.
+Headers:
+
+```json
+{
+   "Authorization": "Bearer <access_token>"
+}
+```
+
+Body:
+
+```json
+{
+   "name": "Knot",
+   "url": "https://www.useknot.xyz/",
+   "homepage_uri": "https://www.useknot.xyz/",
+   "description": "The autonomous wallet for AI agents on Solana.",
+   "skills_url": "https://api.useknot.xyz/skill.md"
+}
+```
+
+### Template: Trigger Ingestion
+
+`POST /api/platforms/{platform_id}/ingest?skills_url=https://api.useknot.xyz/skill.md`
+
+### Template: Search
+
+`GET /api/search/?query=jupiter%20token%20swap&top_k=5`
+
+### Template: Get Latest Skill For Platform
+
+`GET /api/skills/by-platform/{platform_id}`
+
+## Reliability Notes
+
+- Ingestion is asynchronous; polling is expected.
+- Prefer stable, publicly accessible markdown for `skills_url`.
+- In distributed deployments, brief eventual-consistency delays may occur between create and immediate follow-up reads.
+
+## Public Skill Document Endpoint
+
+`GET /skill.md`
+
+Returns a markdown capability document intended for crawlers and registries.
