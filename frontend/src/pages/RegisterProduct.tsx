@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { ThemeToggle } from "../components/ThemeToggle"
+import HomeBackground from "../components/HomeBg"
 import { registerPlatform, registerSkill } from "../services/api"
 
 export default function RegisterProduct() {
@@ -70,65 +71,129 @@ export default function RegisterProduct() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground px-4 py-8">
-      <div className="max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+    <main className="relative min-h-screen overflow-hidden bg-background text-foreground px-4 py-8">
+      <HomeBackground />
+
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="h-120 w-120 rounded-full bg-primary/20 blur-[120px]" />
+      </div>
+
+      <div className="relative z-10 max-w-3xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
           <Button variant="ghost" size="sm" onClick={() => navigate("/home")} className="gap-2">
             <ArrowLeft className="size-4" /> Back
           </Button>
           <ThemeToggle />
         </div>
 
-        <h1 className="text-3xl font-bold mb-2">Register Agentic Product</h1>
-        <p className="text-muted-foreground mb-6">
+        <h1 className="text-4xl font-bold tracking-tight mb-2">Register Agentic Product</h1>
+        <p className="text-muted-foreground mb-8 max-w-2xl">
           Add your product so humans can discover it in semantic search.
         </p>
 
-        <form onSubmit={onSubmit} className="space-y-4 rounded-xl border border-border p-5 bg-card/50">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Product name" required />
-          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Product URL (https://...)" required />
-          <Input
-            value={homepageUri}
-            onChange={(e) => setHomepageUri(e.target.value)}
-            placeholder="Homepage URL (https://...)"
-            required
-          />
-          <Input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Short description"
-          />
-          <Input
-            value={skillsUrl}
-            onChange={(e) => setSkillsUrl(e.target.value)}
-            placeholder="SKILL.md URL (https://.../SKILL.md)"
-            required
-          />
+        <form onSubmit={onSubmit} className="space-y-5 rounded-2xl border border-border/60 bg-card/65 p-6 backdrop-blur-xl shadow-lg shadow-primary/5">
+          <div className="grid gap-1">
+            <label htmlFor="product-name" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Product Name
+            </label>
+            <Input id="product-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Product name" required />
+          </div>
 
-          <div className="pt-2 border-t border-border" />
+          <div className="grid gap-1">
+            <label htmlFor="product-url" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Product URL
+            </label>
+            <Input id="product-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://..." required />
+          </div>
 
-          <Input
-            value={skillName}
-            onChange={(e) => setSkillName(e.target.value)}
-            placeholder="Primary skill name (optional)"
-          />
-          <Input
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="Tags comma-separated (optional): search, wallet, automation"
-          />
-          <textarea
-            value={capabilities}
-            onChange={(e) => setCapabilities(e.target.value)}
-            placeholder="Capabilities text (recommended for immediate search indexing)"
-            className="w-full min-h-32 rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
+          <div className="grid gap-1">
+            <label htmlFor="homepage-url" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Homepage URL
+            </label>
+            <Input
+              id="homepage-url"
+              value={homepageUri}
+              onChange={(e) => setHomepageUri(e.target.value)}
+              placeholder="https://..."
+              required
+            />
+          </div>
 
-          <Input
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="Ingest token (optional; required only if server enforces auth)"
-          />
+          <div className="grid gap-1">
+            <label htmlFor="product-description" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Description
+            </label>
+            <Input
+              id="product-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short description"
+            />
+          </div>
+
+          <div className="grid gap-1">
+            <label htmlFor="skill-file" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              SKILL.md URL
+            </label>
+            <Input
+              id="skill-file"
+              value={skillsUrl}
+              onChange={(e) => setSkillsUrl(e.target.value)}
+              placeholder="https://.../SKILL.md"
+              required
+            />
+          </div>
+
+          <div className="pt-2 border-t border-border/60" />
+
+          <div className="grid gap-1">
+            <label htmlFor="primary-skill" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Primary Skill Name
+            </label>
+            <Input
+              id="primary-skill"
+              value={skillName}
+              onChange={(e) => setSkillName(e.target.value)}
+              placeholder="Optional"
+            />
+          </div>
+
+          <div className="grid gap-1">
+            <label htmlFor="tags" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Tags
+            </label>
+            <Input
+              id="tags"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="search, wallet, automation"
+            />
+          </div>
+
+          <div className="grid gap-1">
+            <label htmlFor="capabilities" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Capabilities
+            </label>
+            <textarea
+              id="capabilities"
+              value={capabilities}
+              onChange={(e) => setCapabilities(e.target.value)}
+              placeholder="Capabilities text for immediate search indexing"
+              className="w-full min-h-36 rounded-md border border-input bg-background/70 px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="grid gap-1">
+            <label htmlFor="ingest-token" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Ingest Token
+            </label>
+            <Input
+              id="ingest-token"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Optional unless auth is enforced"
+            />
+          </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {success && <p className="text-sm text-green-600">{success}</p>}

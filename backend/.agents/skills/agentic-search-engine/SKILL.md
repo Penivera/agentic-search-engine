@@ -15,7 +15,6 @@ Use this skill to integrate an AI agent with ASE (Agentic Search Engine) for:
 
 - Primary deployment: `https://ase-f1e2b8fd.fastapicloud.dev`
 
-
 API prefix for product routes: `/api`
 
 ## Product Identity
@@ -184,6 +183,44 @@ Body:
 ### Template: Get Latest Skill For Platform
 
 `GET /api/skills/by-platform/{platform_id}`
+
+## Common Recovery Actions
+
+Use these automatic recovery rules when calls fail.
+
+### 401 Unauthorized
+
+- If route is an owner route (`/api/platforms/*`, `/api/auth/me`, `/api/auth/logout`):
+   refresh auth by running register/login -> verify-otp -> retry with new bearer token.
+- If route is `POST /api/skills/` and ingest tokens are enabled server-side:
+   retry with valid ingest bearer token OR owner JWT.
+
+### 403 Forbidden
+
+- Usually means token is valid but user is not platform owner.
+- Re-run flow with the owner account used to create that platform.
+
+### 404 Not Found
+
+- `GET /api/skills/by-platform/{platform_id}` right after ingestion:
+   wait and retry (poll every 2-5 seconds up to 60-120 seconds).
+- `POST /api/platforms/{platform_id}/ingest` returns 404:
+   confirm `platform_id` from `POST /api/platforms/` response; do not guess IDs.
+
+### 409 Conflict
+
+- Auth registration may return already registered/verified state.
+- Switch to `POST /api/auth/login` and continue with existing account.
+
+### 5xx Server Errors
+
+- Retry with exponential backoff ($1s, 2s, 4s, 8s$) up to 4 attempts.
+- If still failing, reduce request scope (smaller payload, no optional params), then retry.
+
+### Ingestion Timeout Pattern
+
+- If ingestion was queued but no skill appears:
+   call `POST /api/platforms/{platform_id}/ingest` again with explicit `skills_url`, then poll `GET /api/skills/by-platform/{platform_id}`.
 
 ## Reliability Notes
 

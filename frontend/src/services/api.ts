@@ -81,7 +81,7 @@ export async function registerSkill(skill: SkillPayload, token?: string): Promis
 // Get full skill details
 export async function getSkillDetails(platformId: string): Promise<any> {
   try {
-    const response = await fetch(`${API_URL}/skills/${platformId}`, {
+    const response = await fetch(`${API_URL}/skills/by-platform/${platformId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

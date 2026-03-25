@@ -51,14 +51,27 @@ export default function Landing() {
               <p className="text-muted text-sm leading-relaxed mb-4">
                 Access integration commands and retrieve skill definitions.
               </p>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full group-hover:bg-primary/10 group-hover:border-primary/50 transition-all"
-              >
-                Get Started
-              </Button>
+
+              <div className="grid gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full group-hover:bg-primary/10 group-hover:border-primary/50 transition-all"
+                >
+                  Open Agent Section
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    navigate("/agent#skill-file")
+                  }}
+                >
+                  Go To SKILL.md Command
+                </Button>
+              </div>
             </div>
           </div>
 

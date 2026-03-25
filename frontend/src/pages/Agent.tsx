@@ -8,7 +8,8 @@ export default function AgentPage() {
   const navigate = useNavigate()
   const [copied, setCopied] = useState(false)
 
-  const skillCommand = `curl -s https://api.agentic-search-engine.com/skill.md`
+  const backendBaseUrl = "https://ase-f1e2b8fd.fastapicloud.dev"
+  const skillCommand = `curl -sS ${backendBaseUrl}/skill.md`
   const skillmdContent = `# Agentic Search Engine Skill
 \`\`\`yaml
 name: agentic-search-engine
@@ -59,7 +60,7 @@ author: Penivera
         </div>
 
         {/* Command Section */}
-        <div className="mb-12">
+        <div id="skill-file" className="mb-12 scroll-mt-24">
           <h2 className="text-xl font-semibold mb-4">Integration Command</h2>
           
           <div className="relative group rounded-lg border border-border/50 bg-muted/20 p-6 backdrop-blur-sm">
@@ -112,7 +113,7 @@ author: Penivera
                 <div className="flex-1">
                   <code className="text-sm font-mono">/api/search</code>
                   <p className="text-xs text-muted mt-1">
-                    Search skills by query. Params: query, top_k (default: 5)
+                    Search skills by query. Full URL: {backendBaseUrl}/api/search
                   </p>
                 </div>
               </div>
@@ -126,7 +127,7 @@ author: Penivera
                 <div className="flex-1">
                   <code className="text-sm font-mono">/api/skills</code>
                   <p className="text-xs text-muted mt-1">
-                    Register a new skill (requires bearer token auth)
+                    Register a new skill. Full URL: {backendBaseUrl}/api/skills
                   </p>
                 </div>
               </div>
@@ -140,7 +141,7 @@ author: Penivera
                 <div className="flex-1">
                   <code className="text-sm font-mono">/api/platforms</code>
                   <p className="text-xs text-muted mt-1">
-                    List available platforms/agents in the index
+                    List available platforms. Full URL: {backendBaseUrl}/api/platforms
                   </p>
                 </div>
               </div>
@@ -169,13 +170,13 @@ author: Penivera
               <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
                 3
               </span>
-              <span>Use /api/search endpoint for skill discovery</span>
+              <span>Use {backendBaseUrl}/api/search for discovery</span>
             </li>
             <li className="flex gap-3">
               <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
                 4
               </span>
-              <span>Use /api/skills to register new skills</span>
+              <span>Use {backendBaseUrl}/api/skills to register new skills</span>
             </li>
           </ol>
         </div>
