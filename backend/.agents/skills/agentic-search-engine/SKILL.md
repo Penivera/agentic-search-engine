@@ -67,6 +67,17 @@ Query params:
 - `query`: string, required
 - `top_k`: integer, optional, range `1..50`, default `5`
 - `min_similarity`: float, optional, range `0..1`, default `0.74`
+- `tailoring`: string, optional, one of `strict|balanced|broad`, default `balanced`
+- `auto_relax`: boolean, optional, default `false`
+- `relax_steps`: integer, optional, range `0..2`, default `1`
+
+Relevance behavior:
+
+- Empty or whitespace-only `query` returns `[]`.
+- `strict` favors precision (most tailored).
+- `balanced` is default precision/recall behavior.
+- `broad` is exploratory and may return weaker semantic matches.
+- When `auto_relax=true`, ASE progressively broadens matching if no result is found.
 
 Top result fields include:
 
@@ -184,6 +195,27 @@ Body:
 To enforce stricter relevance filtering:
 
 `GET /api/search/?query=shopping%20mall&top_k=5&min_similarity=0.80`
+
+To ask for highly tailored results:
+
+`GET /api/search/?query=agentic%20wallet%20solana&top_k=5&tailoring=strict`
+
+To let the server broaden automatically if strict returns none:
+
+`GET /api/search/?query=agentic%20shopping%20platform&top_k=5&tailoring=strict&auto_relax=true&relax_steps=2`
+
+Empty query behavior example:
+
+`GET /api/search/?query=%20%20%20&top_k=5`
+
+### Template: Agent Fallback Loop
+
+Use this query-tuning loop if results are empty:
+
+1. Try `tailoring=strict` and your preferred `min_similarity`.
+2. If empty, retry with `auto_relax=true&relax_steps=2`.
+3. If still empty, rewrite query to include domain keywords and retry.
+4. If still empty, use `tailoring=broad` with a lower `min_similarity` (for example `0.65`) and inspect top candidates manually.
 
 ### Template: Get Latest Skill For Platform
 
