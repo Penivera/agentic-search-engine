@@ -1,9 +1,9 @@
 from typing import Annotated, Any, Optional
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from sqlalchemy import select
-from app.core.deps import SessionDep
+from app.core.deps import CurrentUserDep, SessionDep
 from app.models.database import Platform, SkillEmbedding
-from app.schemas.requests import PlatformCreate
+from app.schemas.requests import PlatformCreate, PlatformUpdate
 from app.services.crawler import CrawlerService
 from app.services.vectorizer import Vectorizer
 from app.ingestion.skills_parser import SkillParser
@@ -97,7 +97,10 @@ async def background_crawl_task(
 
 @router.post("/")
 async def create_platform(
-    platform_in: PlatformCreate, session: SessionDep, background_tasks: BackgroundTasks
+    platform_in: PlatformCreate,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUserDep,
 ) -> dict[str, Any]:
     """
     Submit a new platform to the index. Kicks off an asynchronous background
@@ -109,6 +112,7 @@ async def create_platform(
         homepage_uri=str(platform_in.homepage_uri),
         skills_url=str(platform_in.skills_url),
         description=platform_in.description,
+        owner_id=str(current_user.id),
     )
     session.add(db_platform)
     await session.commit()
@@ -207,4 +211,57 @@ async def get_platform(platform_id: str, session: SessionDep) -> dict[str, Any]:
         "skills_url": platform.skills_url,
         "description": platform.description,
         "created_at": platform.created_at.isoformat() if platform.created_at else None,
+    }
+
+
+@router.put("/{platform_id}")
+async def update_platform(
+    platform_id: str,
+    payload: PlatformUpdate,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> dict[str, Any]:
+    import uuid
+
+    try:
+        platform_uuid = uuid.UUID(platform_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid platform_id format")
+
+    result = await session.execute(
+        select(Platform).filter(Platform.id == platform_uuid)
+    )
+    platform = result.scalars().first()
+    if not platform:
+        raise HTTPException(status_code=404, detail="Platform not found")
+
+    if platform.owner_id != str(current_user.id):
+        raise HTTPException(
+            status_code=403, detail="Only the platform owner can edit this platform"
+        )
+
+    if payload.name is not None:
+        platform.name = payload.name
+    if payload.url is not None:
+        platform.url = str(payload.url)
+    if payload.homepage_uri is not None:
+        platform.homepage_uri = str(payload.homepage_uri)
+    if payload.description is not None:
+        platform.description = payload.description
+    if payload.skills_url is not None:
+        platform.skills_url = str(payload.skills_url)
+
+    await session.commit()
+    await session.refresh(platform)
+
+    return {
+        "id": str(platform.id),
+        "name": platform.name,
+        "url": platform.url,
+        "homepage_uri": platform.homepage_uri,
+        "skills_url": platform.skills_url,
+        "description": platform.description,
+        "owner_id": platform.owner_id,
+        "created_at": platform.created_at.isoformat() if platform.created_at else None,
+        "message": "Platform updated successfully",
     }

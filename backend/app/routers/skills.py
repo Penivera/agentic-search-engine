@@ -7,7 +7,13 @@ from typing import Any, Annotated
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import select
 
-from app.core.deps import IngestAuthDep, SessionDep, VectorizerDep
+from app.core.config import settings
+from app.core.deps import (
+    BearerCredentialsDep,
+    OptionalUserDep,
+    SessionDep,
+    VectorizerDep,
+)
 from app.models.database import Platform, SkillEmbedding
 from app.schemas.requests import SkillCreate
 
@@ -31,7 +37,8 @@ async def create_skill(
     skill_in: SkillCreate,
     session: SessionDep,
     vectorizer: VectorizerDep,
-    _: IngestAuthDep,
+    credentials: BearerCredentialsDep,
+    current_user: OptionalUserDep,
 ) -> dict[str, Any]:
     """
     Register or update a skill. Requires bearer token when INGEST_API_TOKENS is configured.
@@ -47,6 +54,18 @@ async def create_skill(
     platform = result.scalars().first()
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found")
+
+    # Authorized if bearer token is in INGEST_API_TOKENS OR user owns the platform.
+    if settings.ingest_tokens:
+        bearer_token = credentials.credentials if credentials else None
+        is_ingest_token = bool(bearer_token and bearer_token in settings.ingest_tokens)
+        is_owner = bool(current_user and str(current_user.id) == platform.owner_id)
+
+        if not is_ingest_token and not is_owner:
+            raise HTTPException(
+                status_code=401,
+                detail="Missing or invalid bearer token",
+            )
 
     embedding_text = "\n".join(
         x

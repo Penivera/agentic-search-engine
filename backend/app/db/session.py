@@ -29,8 +29,25 @@ async def init_db():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_users_columns)
         await conn.run_sync(_ensure_platforms_columns)
         await conn.run_sync(_ensure_skills_embeddings_columns)
+
+
+def _ensure_users_columns(sync_conn) -> None:
+    inspector = inspect(sync_conn)
+    table_names = inspector.get_table_names()
+    if "users" not in table_names:
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "is_verified" not in existing_columns:
+        sync_conn.execute(
+            text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0 NOT NULL")
+        )
+
+    if "verified_at" not in existing_columns:
+        sync_conn.execute(text("ALTER TABLE users ADD COLUMN verified_at TIMESTAMP"))
 
 
 def _ensure_platforms_columns(sync_conn) -> None:
@@ -43,6 +60,11 @@ def _ensure_platforms_columns(sync_conn) -> None:
     if "skills_url" not in existing_columns:
         sync_conn.execute(
             text("ALTER TABLE platforms ADD COLUMN skills_url VARCHAR(2083)")
+        )
+
+    if "owner_id" not in existing_columns:
+        sync_conn.execute(
+            text("ALTER TABLE platforms ADD COLUMN owner_id VARCHAR(255)")
         )
 
 

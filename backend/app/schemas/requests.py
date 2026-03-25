@@ -12,6 +12,16 @@ class PlatformCreate(BaseModel):
     skills_url: HttpUrl
 
 
+class PlatformUpdate(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    name: Optional[str] = None
+    url: Optional[HttpUrl] = None
+    homepage_uri: Optional[HttpUrl] = None
+    description: Optional[str] = None
+    skills_url: Optional[HttpUrl] = None
+
+
 class SkillCreate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

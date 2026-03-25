@@ -32,8 +32,56 @@ Open docs at `/docs`.
 - `DATABASE_URL` (default: `sqlite:///dev.db`)
 - `INGEST_API_TOKENS` (comma-separated bearer tokens, optional)
 - `SEARCH_CACHE_TTL_SECONDS` (default: `60`)
+- `JWT_SECRET_KEY` (required in production)
+- `JWT_ALGORITHM` (default: `HS256`)
+- `JWT_EXPIRE_MINUTES` (default: `10080`)
+- `REDIS_URL` (default: `redis://localhost:6379/0`)
+- `OTP_EXPIRE_MINUTES` (default: `10`)
+- `OTP_DEBUG_EXPOSE_CODE` (default: `true`; disable in production)
+- `SMTP_HOST` (required for OTP email delivery)
+- `SMTP_PORT` (default: `587`)
+- `SMTP_USERNAME` (required for OTP email delivery)
+- `SMTP_PASSWORD` (required for OTP email delivery)
+- `SMTP_SEND_FROM_MAIL` (required; sender email address)
+- `SMTP_USE_STARTTLS` (default: `true`)
+- `SMTP_TIMEOUT_SECONDS` (default: `20`)
 
 If `INGEST_API_TOKENS` is unset, skill registration is open for local development.
+
+## Migrations
+
+Use the explicit config path to avoid runtime working-directory issues:
+
+```bash
+/workspaces/agentic-search-engine/.venv/bin/alembic -c /workspaces/agentic-search-engine/backend/alembic.ini upgrade head
+```
+
+## Auth API Contract
+
+Base prefix: `/api/auth`
+
+### `POST /api/auth/register`
+Creates a user account and starts OTP verification.
+
+### `POST /api/auth/verify-otp`
+Verifies the one-time code and returns a JWT access token.
+
+### `POST /api/auth/resend-otp`
+Reissues OTP for existing, unverified users.
+
+### `POST /api/auth/login`
+Authenticates an existing verified user and returns a JWT access token.
+
+### `GET /api/auth/me`
+Returns the authenticated user from the bearer token.
+
+### `POST /api/auth/logout`
+Blacklists the current JWT in Redis until token expiration.
+
+Notes:
+- Unverified users cannot log in or publish platforms until OTP verification succeeds.
+- Platform registration (`POST /api/platforms`) requires an authenticated JWT.
+- Platform edits (`PUT /api/platforms/{platform_id}`) are restricted to the platform owner.
 
 ## Skills API Contract
 
