@@ -5,7 +5,6 @@ import { Input } from "../../src/components/ui/input"
 import { Button } from "../components/ui/button"
 import { ThemeToggle } from "../components/ThemeToggle" 
 import HomeBackground from "../components/HomeBg"
-import { Terminal } from "lucide-react"
 
 export default function Home() {
   const [query, setQuery] = useState("")
@@ -23,19 +22,7 @@ export default function Home() {
         <HomeBackground />
 
 
-      <div className="fixed top-4 left-4 z-50">
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => navigate("/console")}
-          className="gap-2 hover:text-primary hover:bg-primary/5 transition-all"
-        >
-          <Terminal className="size-4" />
-          <span className="hidden sm:inline font-semibold uppercase tracking-wider text-[12px]">
-            Search Console
-          </span>
-        </Button>
-      </div>
+
 
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />

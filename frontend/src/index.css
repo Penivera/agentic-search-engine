@@ -8,16 +8,17 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
 }
-
 
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
   --primary: #3b82f6;
   --muted: #64748b;
+  --muted-foreground: #64748b;
   --border: #e2e8f0;
 }
 
@@ -26,16 +27,6 @@
   --foreground: #f1f5f9;
   --primary: #3b82f6;
   --muted: #94a3b8;
+  --muted-foreground: #94a3b8; 
   --border: #1e293b;
-}
-
-
-@layer base {
-  html, body {
-    @apply font-sans;
-  }
-
-  body {
-    @apply bg-background text-foreground transition-colors duration-300;
-  }
 }

@@ -4,10 +4,12 @@ import Home from "../src/pages/Home";
 import Agent from "../src/pages/Agent";
 import RegisterProduct from "../src/pages/RegisterProduct";
 import SearchResults from "../src/pages/SearchResults";
-import Dashboard from "../src/pages/Dashboard";
+import { ThemeProvider } from "./context/ThemeProvider";
+
 
 export default function App() {
   return (
+    <ThemeProvider>
     <BrowserRouter>
       <Routes>
         {/* Landing Page: Dual interface - "I'm an Agent" or "I'm a Human" */}
@@ -25,9 +27,8 @@ export default function App() {
         {/* Search Results: Display query results */}
         <Route path="/search" element={<SearchResults />} />
         
-        {/* Search Console: Developer dashboard */}
-        <Route path="/console" element={<Dashboard />} />
       </Routes>
     </BrowserRouter>
+    </ThemeProvider>
   );
 }
