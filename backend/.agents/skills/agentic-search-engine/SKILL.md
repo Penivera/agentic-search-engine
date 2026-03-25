@@ -23,18 +23,77 @@ All API routes are prefixed with `/api`.
 
 ## Agent Flow
 
-1. Register a platform with metadata and optional `skills_url`.
-2. Add capabilities directly via `/api/skills/` or queue ingestion via `/api/platforms/{platform_id}/ingest`.
-3. Search with `/api/search/` and use returned `platform_id` and `skill_md_url`.
-4. Call `/api/skills/{platform_id}` to fetch full capability text for a chosen result.
+1. Create a user account via `/api/auth/register`.
+2. Verify the user with OTP via `/api/auth/verify-otp` to receive a JWT.
+3. Publish a platform on behalf of that verified user via `/api/platforms/` with `Authorization: Bearer <jwt>`.
+4. Add capabilities directly via `/api/skills/` using the same JWT, or queue ingestion via `/api/platforms/{platform_id}/ingest`.
+5. Search with `/api/search/` and use returned `platform_id` and `skill_md_url`.
+6. Call `/api/skills/{platform_id}` to fetch full capability text for a chosen result.
 
 ## Endpoints
 
-### 1. Register a New Platform
+### 1. Register User (Start OTP Flow)
+
+Create a user account and trigger OTP delivery.
+
+**Endpoint**: `POST /api/auth/register`
+**Payload**:
+
+```json
+{
+  "email": "owner@example.com",
+  "password": "strong-password-123"
+}
+```
+
+**Success Response (200)**:
+
+```json
+{
+  "message": "Verification code sent",
+  "verification_required": true,
+  "email": "owner@example.com",
+  "otp_expires_in_seconds": 600,
+  "dev_otp": "123456"
+}
+```
+
+`dev_otp` appears only when backend debug OTP exposure is enabled.
+
+### 2. Verify OTP (Get JWT)
+
+Verify the user and get an access token.
+
+**Endpoint**: `POST /api/auth/verify-otp`
+**Payload**:
+
+```json
+{
+  "email": "owner@example.com",
+  "otp_code": "123456"
+}
+```
+
+**Success Response (200)**:
+
+```json
+{
+  "access_token": "<jwt>",
+  "token_type": "bearer",
+  "expires_at": "2026-04-01T12:00:00+00:00",
+  "user": {
+    "id": "123e4567-e89b-12d3-a456-426614174000",
+    "email": "owner@example.com"
+  }
+}
+```
+
+### 3. Register a New Platform
 
 Use this endpoint to register a new platform or agent application into the index.
 
 **Endpoint**: `POST /api/platforms/`
+**Auth Header**: `Authorization: Bearer <jwt>`
 **Payload**:
 
 ```json
@@ -60,7 +119,7 @@ Use this endpoint to register a new platform or agent application into the index
 }
 ```
 
-### 2. Queue Skill Ingestion
+### 4. Queue Skill Ingestion
 
 Use this endpoint to trigger crawling/ingestion for a registered platform.
 
@@ -84,11 +143,12 @@ Use this endpoint to trigger crawling/ingestion for a registered platform.
 - `400` invalid `platform_id` format
 - `404` platform not found
 
-### 3. Register a Skill
+### 5. Register a Skill
 
 Use this endpoint to add capability text directly to a registered platform. Embeddings are generated automatically.
 
 **Endpoint**: `POST /api/skills/`
+**Auth Header**: `Authorization: Bearer <jwt>` (or ingest token when configured)
 **Payload**:
 
 ```json
@@ -109,7 +169,7 @@ Use this endpoint to add capability text directly to a registered platform. Embe
 }
 ```
 
-### 4. Search for Skills
+### 6. Search for Skills
 
 Use this endpoint to semantically search for platforms matching the capability you need.
 
@@ -139,7 +199,7 @@ Use this endpoint to semantically search for platforms matching the capability y
 
 `skill_md_url` comes from the platform's registered `skills_url` and may be `null` if it was not provided.
 
-### 5. Get Full Skill Details for a Platform
+### 7. Get Full Skill Details for a Platform
 
 Use this endpoint after search to retrieve full capabilities text for a selected platform.
 
@@ -163,3 +223,9 @@ Use this endpoint after search to retrieve full capabilities text for a selected
   "message": "We do not have a skill file for this platform yet. You can request it to be indexed via the /platforms endpoint."
 }
 ```
+
+## Ownership Notes
+
+- `POST /api/platforms/` always creates the platform under the authenticated user.
+- `PUT /api/platforms/{platform_id}` is restricted to that platform owner.
+- If login fails with `Email not verified. Verify OTP first.`, complete `/api/auth/verify-otp` before publishing.
