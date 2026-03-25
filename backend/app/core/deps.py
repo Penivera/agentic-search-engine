@@ -13,10 +13,13 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 # We cache Vectorizer so we don't reload the SentenceTransformer model on every request
-_vectorizer_instance = Vectorizer()
+_vectorizer_instance: Vectorizer | None = None
 
 
 def get_vectorizer() -> Vectorizer:
+    global _vectorizer_instance
+    if _vectorizer_instance is None:
+        _vectorizer_instance = Vectorizer()
     return _vectorizer_instance
 
 

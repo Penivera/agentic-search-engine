@@ -19,6 +19,12 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+Optional (real transformer embeddings instead of deterministic fallback):
+
+```bash
+pip install sentence-transformers==2.7.0
+```
+
 Open docs at `/docs`.
 
 ## Environment Variables
