@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { useSearchParams, useNavigate } from "react-router-dom"
-import { Search, ArrowLeft, Loader2 } from "lucide-react"
+import { Search, ArrowLeft, Loader2, } from "lucide-react"
 import { Input } from "../../src/components/ui/input"
 import { Button } from "../../src/components/ui/button"
 import { ThemeToggle } from "../../src/components/ThemeToggle"
@@ -8,11 +8,15 @@ import { SearchResultCard } from "../../src/components/results"
 import type { SearchResult } from "../services/api"
 import { searchSkills } from "../services/api"
 
+const SEMANTIC_CATEGORIES = [
+  "DeFi", "Trading", "Arbitrage", "NFTs", "Analytics", "Wallets"
+]
+
 export default function SearchResults() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const initialQuery = searchParams.get("q") || ""
-  
+
   const [query, setQuery] = useState(initialQuery)
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -29,10 +33,10 @@ export default function SearchResults() {
 
   const fetchResults = async (searchQuery: string) => {
     if (!searchQuery.trim()) return
-    
+
     setLoading(true)
     setError(null)
-    
+
     try {
       const data = await searchSkills(searchQuery, 10)
       setResults(data)
@@ -53,7 +57,11 @@ export default function SearchResults() {
     }
   }
 
-  // Convert API response to card format
+  const handleCategoryClick = (category: string) => {
+    setQuery(category)
+    navigate(`/search?q=${encodeURIComponent(category)}`)
+  }
+
   const cardResults = results.map((result) => ({
     id: result.platform_id,
     title: result.platform_name,
@@ -67,13 +75,18 @@ export default function SearchResults() {
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
 
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-4 h-20 flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center gap-4">
 
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="shrink-0">
-            <ArrowLeft className="size-5" />
-          </Button>
+          <div className="flex w-full sm:w-auto items-center justify-between mb-2 sm:mb-0">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="shrink-0">
+              <ArrowLeft className="size-5" />
+            </Button>
+            <div className="sm:hidden">
+              <ThemeToggle />
+            </div>
+          </div>
 
-          <form onSubmit={onSearch} className="relative flex-1 group max-w-2xl">
+          <form onSubmit={onSearch} className="relative w-full sm:flex-1 group max-w-3xl mx-auto">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -87,11 +100,30 @@ export default function SearchResults() {
             </div>
           </form>
 
-          <ThemeToggle />
+          <div className="hidden sm:block">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto px-4 pb-4 overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 justify-center min-w-max">
+            {SEMANTIC_CATEGORIES.map((category) => (
+              <button
+                key={category}
+                onClick={() => handleCategoryClick(category)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all border ${initialQuery.toLowerCase() === category.toLowerCase()
+                  ? 'bg-primary/20 border-primary/50 text-primary'
+                  : 'bg-muted/10 border-border/40 text-muted-foreground hover:bg-muted/30 hover:text-foreground'
+                  }`}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-sm font-medium text-muted uppercase tracking-widest">
             Results for: <span className="text-foreground italic">"{initialQuery}"</span>

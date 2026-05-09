@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom" 
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "./ui/card"
 import { Badge } from "./ui/badge"
 import { Button } from "./ui/button"
@@ -14,12 +15,15 @@ export type SearchCardResult = {
 }
 
 export function SearchResultCard({ result }: { result: mockResultsType | SearchCardResult }) {
+  const navigate = useNavigate()
   return (
     <Card className="hover:shadow-lg transition-all border-border bg-surface/20 backdrop-blur-sm group">
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start gap-4">
-          {/* Changed text-blue-600 to text-primary */}
-          <CardTitle className="text-lg text-primary cursor-pointer hover:underline font-bold">
+          <CardTitle 
+          onClick={() => navigate(`/agent/${result.id}`)}
+          className="text-lg text-primary cursor-pointer hover:underline font-bold">
+            
             {result.title}
           </CardTitle>
           <Badge variant="outline" className="border-border text-muted shrink-0">
@@ -41,12 +45,13 @@ export function SearchResultCard({ result }: { result: mockResultsType | SearchC
         </div>
       </CardContent>
 
-      {/* Replaced bg-slate-50/50 with bg-muted/5 and updated borders */}
       <CardFooter className="border-t border-border pt-3 flex justify-between bg-muted/5 rounded-b-lg">
         <span className="text-xs text-muted font-medium">
           Match: <span className="text-primary">{(result.relevanceScore * 100).toFixed(0)}%</span>
         </span>
-        <Button size="sm" variant="ghost" className="text-xs gap-2 hover:bg-primary hover:text-white transition-colors">
+        <Button 
+        onClick={() => navigate(`/agent/${result.id}`)}
+        size="sm" variant="ghost" className="text-xs gap-2 hover:bg-primary hover:text-white transition-colors">
           <Play size={14} fill="currentColor" /> Trigger Skill
         </Button>
       </CardFooter>

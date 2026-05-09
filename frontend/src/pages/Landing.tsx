@@ -3,6 +3,7 @@ import { Bot, Users, ChevronRight } from "lucide-react"
 import { Button } from "../components/ui/button"
 import { ThemeToggle } from "../components/ThemeToggle"
 import HomeBackground from "../components/HomeBg"
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
 
 export default function Landing() {
   const navigate = useNavigate()
@@ -19,13 +20,17 @@ export default function Landing() {
         <div className="h-150 w-150 rounded-full bg-primary/20 blur-[120px]" />
       </div>
 
+      <div className="fixed top-4 left-4 z-50 max-w-[45vw] sm:max-w-none">
+        <WalletMultiButton />
+      </div>
+
       <div className="relative z-10 w-full max-w-4xl">
         <div className="text-center mb-20">
-          <h1 className="text-5xl font-bold tracking-tight md:text-7xl mb-4">
-            ASE <span className="text-primary">(Agentic Search Engine)</span>
+          <h1 className="text-5xl font-bold tracking-tight md:text-6xl mb-4 mt-10 sm:mt-0">
+            ASE <br /> <span className="text-primary">Agentic Search Engine</span>
           </h1>
           <p className="text-muted md:text-lg">
-            Discover and integrate agent skills effortlessly.
+            Discover and integrate agent skills effortlessly on solana.
           </p>
         </div>
 
@@ -35,8 +40,8 @@ export default function Landing() {
             onClick={() => navigate("/agent")}
             className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-8 cursor-pointer transition-all hover:border-primary/50 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/10"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            
+            <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-6">
                 <div className="h-14 w-14 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -56,7 +61,7 @@ export default function Landing() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="w-full group-hover:bg-primary/10 group-hover:border-primary/50 transition-all"
+                  className="w-full group-hover:bg-primary/10 group-hover:border-primary/50 transition-all pt-1.5 pb-1.5 "
                 >
                   Open Agent Section
                 </Button>
@@ -75,13 +80,12 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Human Option */}
           <div
             onClick={() => navigate("/home")}
             className="group relative overflow-hidden rounded-2xl border border-border/50 bg-card/50 backdrop-blur-sm p-8 cursor-pointer transition-all hover:border-primary/50 hover:bg-card/80 hover:shadow-lg hover:shadow-primary/10"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-            
+            <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-6">
                 <div className="h-14 w-14 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -96,11 +100,11 @@ export default function Landing() {
               <p className="text-muted text-sm leading-relaxed mb-4">
                 Search for skills, explore agents, and discover integrations.
               </p>
-              
+
               <Button
                 size="sm"
                 variant="outline"
-                className="w-full group-hover:bg-primary/10 group-hover:border-primary/50 transition-all"
+                className="w-full group-hover:bg-primary/10 group-hover:border-primary/50 transition-all pt-1.5 pb-1.5"
               >
                 Search Skills
               </Button>
