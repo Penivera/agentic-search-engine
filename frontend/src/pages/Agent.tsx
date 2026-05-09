@@ -43,7 +43,6 @@ author: Penivera
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-20">
-        {/* Header */}
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
             <div className="h-16 w-16 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -94,7 +93,7 @@ author: Penivera
           <h2 className="text-xl font-semibold mb-4">SKILL.md Preview</h2>
           
           <div className="rounded-lg border border-border/50 bg-muted/20 p-6 backdrop-blur-sm overflow-x-auto">
-            <pre className="text-sm font-mono text-foreground/80 whitespace-pre-wrap break-words">
+            <pre className="text-sm font-mono text-foreground/80 whitespace-pre-wrap wrap-break-word">
               {skillmdContent}
             </pre>
           </div>
@@ -155,25 +154,25 @@ author: Penivera
           
           <ol className="space-y-3 text-sm">
             <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+              <span className="shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
                 1
               </span>
               <span>Copy the integration command above</span>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+              <span className="shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
                 2
               </span>
               <span>Integrate with your agent/LLM system</span>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+              <span className="shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
                 3
               </span>
               <span>Use {backendBaseUrl}/api/search for discovery</span>
             </li>
             <li className="flex gap-3">
-              <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
+              <span className="shrink-0 h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold">
                 4
               </span>
               <span>Use {backendBaseUrl}/api/skills to register new skills</span>

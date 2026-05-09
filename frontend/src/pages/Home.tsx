@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom"
 import { Search } from "lucide-react"
 import { Input } from "../../src/components/ui/input"
 import { Button } from "../components/ui/button"
-import { ThemeToggle } from "../components/ThemeToggle" 
+import { ThemeToggle } from "../components/ThemeToggle"
 import HomeBackground from "../components/HomeBg"
+
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
 
 export default function Home() {
   const [query, setQuery] = useState("")
@@ -19,10 +21,11 @@ export default function Home() {
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center p-6 overflow-hidden bg-background text-foreground transition-colors duration-300">
-        <HomeBackground />
+      <HomeBackground />
 
-
-
+      <div className="absolute top-4 left-4 z-50 max-w-[45vw] sm:max-w-none">
+        <WalletMultiButton />
+      </div>
 
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
@@ -34,7 +37,7 @@ export default function Home() {
 
       <div className="relative z-10 w-full max-w-4xl text-center mb-25">
         <h1 className="text-5xl font-bold tracking-tight md:text-7xl mb-2">
-          ASE <span className="text-primary">(Agentic Search Engine)</span>
+          ASE <br /> <span className="text-primary">(Agentic Search Engine)</span>
         </h1>
         <p className="text-muted mb-10 md:text-lg">
           Find skills, tools, and agents instantly.
@@ -48,10 +51,10 @@ export default function Home() {
             className="h-16 pl-6 pr-14 rounded-2xl border-border bg-background/50 backdrop-blur-md shadow-xl transition-all focus:ring-4 focus:ring-primary/10"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <Button 
+            <Button
               type="submit"
-              size="icon" 
-              variant="ghost" 
+              size="icon"
+              variant="ghost"
               className="h-10 w-10"
             >
               <Search className="size-6" />

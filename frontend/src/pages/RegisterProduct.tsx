@@ -7,8 +7,18 @@ import { ThemeToggle } from "../components/ThemeToggle"
 import HomeBackground from "../components/HomeBg"
 import { registerPlatform, registerSkill } from "../services/api"
 
+// --- 1. SOLANA IMPORTS ---
+import { useWallet, useConnection } from "@solana/wallet-adapter-react"
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
+import { Transaction, SystemProgram } from "@solana/web3.js"
+
 export default function RegisterProduct() {
   const navigate = useNavigate()
+
+  // --- 2. SOLANA HOOKS ---
+  const { connection } = useConnection()
+  const { publicKey, sendTransaction } = useWallet()
+
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -25,11 +35,37 @@ export default function RegisterProduct() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Safety check: Don't allow submission without a wallet
+    if (!publicKey) {
+      setError("Please connect your Solana wallet to register an agent.")
+      return
+    }
+
     setSubmitting(true)
     setError(null)
     setSuccess(null)
 
     try {
+      // --- 3. THE WEB3 TRANSACTION ---
+      // This creates a placeholder transaction that sends 0 SOL to the user's own wallet.
+      // It triggers the Phantom approval popup to prove the Web3 integration works.
+      // TODO: Replace this block with your teammate's actual Smart Contract instruction later.
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: publicKey,
+          lamports: 100,
+        })
+      );
+
+      // Ask the user to sign the transaction and wait for the network to confirm it
+      const signature = await sendTransaction(transaction, connection);
+      await connection.confirmTransaction(signature, 'processed');
+
+
+      // --- 4. THE WEB2 DATABASE STORAGE ---
+      // Once the blockchain confirms the transaction, we save the data to your indexer.
       const platform = await registerPlatform(
         {
           name,
@@ -50,16 +86,16 @@ export default function RegisterProduct() {
             skill_name: skillName || undefined,
             tags: tags
               ? tags
-                  .split(",")
-                  .map((t) => t.trim())
-                  .filter(Boolean)
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean)
               : undefined,
           },
           token || undefined,
         )
       }
 
-      setSuccess("Product registered successfully. It is now available for search.")
+      setSuccess("Agent successfully registered on Solana and indexed for search.")
       const q = encodeURIComponent(skillName || name)
       setTimeout(() => navigate(`/search?q=${q}`), 900)
     } catch (err) {
@@ -79,14 +115,19 @@ export default function RegisterProduct() {
       </div>
 
       <div className="relative z-10 max-w-3xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/home")} className="gap-2">
-            <ArrowLeft className="size-4" /> Back
+
+        <div className="fixed top-4 left-4 z-50">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="gap-2">
+            <ArrowLeft className="size-4" />
+            <span className="hidden sm:inline">Back</span>
           </Button>
+        </div>
+
+        <div className="fixed top-4 right-4 z-50">
           <ThemeToggle />
         </div>
 
-        <h1 className="text-4xl font-bold tracking-tight mb-2">Register Agentic Product</h1>
+        <h1 className="text-4xl font-bold tracking-tight mb-2 mt-10 sm:mt-0">Register Agentic Product</h1>
         <p className="text-muted-foreground mb-8 max-w-2xl">
           Add your product so humans can discover it in semantic search.
         </p>
@@ -198,10 +239,31 @@ export default function RegisterProduct() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {success && <p className="text-sm text-green-600">{success}</p>}
 
-          <Button type="submit" disabled={submitting} className="w-full gap-2">
-            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
-            {submitting ? "Registering..." : "Register Product"}
-          </Button>
+
+          <div className="pt-4">
+            {!publicKey ? (
+              <div className="w-full rounded-lg  bg-purple-500/5 flex [&_.wallet-adapter-dropdown]:w-full [&_.wallet-adapter-dropdown]:flex [&_.wallet-adapter-button]:w-full!">
+                <WalletMultiButton 
+                  style={{ 
+                    background: 'linear-gradient(to right, #9333ea, #2563eb)', 
+                    height: '3rem', 
+                    fontSize: '1.125rem',
+                    width: '100%', 
+                    justifyContent: 'center' 
+                  }} 
+                />
+              </div>
+            ) : (
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full gap-2 bg-linear-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white font-bold h-12 text-lg"
+              >
+                {submitting ? <Loader2 className="size-5 animate-spin" /> : null}
+                {submitting ? "Awaiting Signature..." : "Sign Transaction & Register"}
+              </Button>
+            )}
+          </div>
         </form>
       </div>
     </main>
