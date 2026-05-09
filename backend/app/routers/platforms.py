@@ -110,7 +110,7 @@ async def create_platform(
         name=platform_in.name,
         url=str(platform_in.url),
         homepage_uri=str(platform_in.homepage_uri),
-        skills_url=str(platform_in.skills_url),
+        skills_url=str(platform_in.skills_url) if platform_in.skills_url else None,
         description=platform_in.description,
         owner_id=str(current_user.id),
     )
@@ -123,7 +123,7 @@ async def create_platform(
         background_crawl_task,
         str(db_platform.id),
         str(db_platform.url),
-        str(platform_in.skills_url),
+        str(platform_in.skills_url) if platform_in.skills_url else None,
     )
 
     return {
@@ -265,3 +265,34 @@ async def update_platform(
         "created_at": platform.created_at.isoformat() if platform.created_at else None,
         "message": "Platform updated successfully",
     }
+
+
+@router.delete("/{platform_id}")
+async def delete_platform(
+    platform_id: str,
+    session: SessionDep,
+    current_user: CurrentUserDep,
+) -> dict[str, Any]:
+    import uuid
+
+    try:
+        platform_uuid = uuid.UUID(platform_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid platform_id format")
+
+    result = await session.execute(
+        select(Platform).filter(Platform.id == platform_uuid)
+    )
+    platform = result.scalars().first()
+    if not platform:
+        raise HTTPException(status_code=404, detail="Platform not found")
+
+    if platform.owner_id != str(current_user.id):
+        raise HTTPException(
+            status_code=403, detail="Only the platform owner can delete this platform"
+        )
+
+    await session.delete(platform)
+    await session.commit()
+
+    return {"message": "Platform deleted successfully", "id": platform_id}

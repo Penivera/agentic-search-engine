@@ -9,7 +9,7 @@ class PlatformCreate(BaseModel):
     url: HttpUrl
     homepage_uri: HttpUrl
     description: Optional[str] = None
-    skills_url: HttpUrl
+    skills_url: Optional[HttpUrl] = None
 
 
 class PlatformUpdate(BaseModel):

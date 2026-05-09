@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "../components/ui/button"
@@ -6,9 +6,11 @@ import { Input } from "../components/ui/input"
 import { ThemeToggle } from "../components/ThemeToggle"
 import HomeBackground from "../components/HomeBg"
 import { registerPlatform, registerSkill } from "../services/api"
+import { useAuth } from "../context/AuthContext"
 
 export default function RegisterProduct() {
   const navigate = useNavigate()
+  const { isAuthenticated, isLoading, token } = useAuth()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -21,7 +23,13 @@ export default function RegisterProduct() {
   const [capabilities, setCapabilities] = useState("")
   const [skillName, setSkillName] = useState("")
   const [tags, setTags] = useState("")
-  const [token, setToken] = useState("")
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate("/login?redirect=/register")
+    }
+  }, [isLoading, isAuthenticated, navigate])
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,7 +44,7 @@ export default function RegisterProduct() {
           url,
           homepage_uri: homepageUri,
           description: description || undefined,
-          skills_url: skillsUrl,
+          skills_url: skillsUrl || undefined,
         },
         token || undefined,
       )
@@ -68,6 +76,15 @@ export default function RegisterProduct() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Show nothing while checking auth state
+  if (isLoading) {
+    return (
+      <main className="relative min-h-screen overflow-hidden bg-background text-foreground flex items-center justify-center">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </main>
+    )
   }
 
   return (
@@ -133,14 +150,13 @@ export default function RegisterProduct() {
 
           <div className="grid gap-1">
             <label htmlFor="skill-file" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              SKILL.md URL
+              SKILL.md URL <span className="normal-case font-normal">(optional — crawler will try to discover it)</span>
             </label>
             <Input
               id="skill-file"
               value={skillsUrl}
               onChange={(e) => setSkillsUrl(e.target.value)}
               placeholder="https://.../SKILL.md"
-              required
             />
           </div>
 
@@ -183,20 +199,16 @@ export default function RegisterProduct() {
             />
           </div>
 
-          <div className="grid gap-1">
-            <label htmlFor="ingest-token" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Ingest Token
-            </label>
-            <Input
-              id="ingest-token"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Optional unless auth is enforced"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {success && <p className="text-sm text-green-600">{success}</p>}
+          {error && (
+            <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-2">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          {success && (
+            <div className="rounded-lg border border-green-500/30 bg-green-500/5 px-3 py-2">
+              <p className="text-sm text-green-600">{success}</p>
+            </div>
+          )}
 
           <Button type="submit" disabled={submitting} className="w-full gap-2">
             {submitting ? <Loader2 className="size-4 animate-spin" /> : null}

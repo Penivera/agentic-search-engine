@@ -1,14 +1,16 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Search } from "lucide-react"
+import { Search, LogIn, LayoutDashboard } from "lucide-react"
 import { Input } from "../../src/components/ui/input"
 import { Button } from "../components/ui/button"
 import { ThemeToggle } from "../components/ThemeToggle" 
 import HomeBackground from "../components/HomeBg"
+import { useAuth } from "../context/AuthContext"
 
 export default function Home() {
   const [query, setQuery] = useState("")
   const navigate = useNavigate()
+  const { isAuthenticated, user } = useAuth()
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,10 +23,21 @@ export default function Home() {
     <main className="relative flex min-h-screen flex-col items-center justify-center p-6 overflow-hidden bg-background text-foreground transition-colors duration-300">
         <HomeBackground />
 
-
-
-
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        {isAuthenticated ? (
+          <>
+            <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
+            <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")} className="gap-1.5">
+              <LayoutDashboard className="size-3.5" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Button>
+          </>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => navigate("/login")} className="gap-1.5">
+            <LogIn className="size-3.5" />
+            Sign In
+          </Button>
+        )}
         <ThemeToggle />
       </div>
 

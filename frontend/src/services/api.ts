@@ -1,5 +1,7 @@
 import API_URL from '../lib/api';
 
+// ─── Types ───────────────────────────────────────────────────
+
 export interface SearchResult {
   platform_name: string;
   platform_description?: string;
@@ -21,129 +23,155 @@ export interface PlatformPayload {
   url: string;
   homepage_uri: string;
   description?: string;
-  skills_url: string;
+  skills_url?: string;
 }
 
-// Search for skills
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
+export interface AuthResponse {
+  message: string;
+  verification_required: boolean;
+  access_token?: string;
+  token_type?: string;
+  expires_at?: string;
+  user?: AuthUser;
+  dev_otp?: string;
+  email?: string;
+}
+
+export interface PlatformItem {
+  id: string;
+  name: string;
+  url: string;
+  homepage_uri: string;
+  skills_url?: string;
+  description?: string;
+  owner_id?: string;
+  created_at?: string;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+function authHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function handleResponse<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const body = await response.json();
+      detail = body.detail || JSON.stringify(body);
+    } catch {
+      // use statusText
+    }
+    throw new Error(detail);
+  }
+  return response.json();
+}
+
+// ─── Auth ────────────────────────────────────────────────────
+
+export async function registerUser(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return handleResponse<AuthResponse>(response);
+}
+
+export async function loginUser(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return handleResponse<AuthResponse>(response);
+}
+
+export async function logoutUser(token: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_URL}/auth/logout`, {
+    method: 'POST',
+    headers: authHeaders(token),
+  });
+  return handleResponse<{ message: string }>(response);
+}
+
+export async function getMe(token: string): Promise<AuthUser> {
+  const response = await fetch(`${API_URL}/auth/me`, {
+    method: 'GET',
+    headers: authHeaders(token),
+  });
+  return handleResponse<AuthUser>(response);
+}
+
+// ─── Search ──────────────────────────────────────────────────
+
 export async function searchSkills(query: string, topK: number = 5): Promise<SearchResult[]> {
-  try {
-    const params = new URLSearchParams({
-      query,
-      top_k: topK.toString(),
-    });
-    
-    const response = await fetch(`${API_URL}/search?${params}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  const params = new URLSearchParams({
+    query,
+    top_k: topK.toString(),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Failed to search skills: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Search error:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_URL}/search?${params}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse<SearchResult[]>(response);
 }
 
-// Register a skill
+// ─── Skills ──────────────────────────────────────────────────
+
 export async function registerSkill(skill: SkillPayload, token?: string): Promise<any> {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_URL}/skills`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(skill),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to register skill: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Registration error:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_URL}/skills`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(skill),
+  });
+  return handleResponse(response);
 }
 
-// Get full skill details
 export async function getSkillDetails(platformId: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_URL}/skills/by-platform/${platformId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch skill details: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Fetch error:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_URL}/skills/by-platform/${platformId}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse(response);
 }
 
-// Register a platform
+// ─── Platforms ───────────────────────────────────────────────
+
 export async function registerPlatform(platform: PlatformPayload, token?: string): Promise<any> {
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_URL}/platforms/`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(platform),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to register platform: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Platform registration error:', error);
-    throw error;
-  }
+  const response = await fetch(`${API_URL}/platforms/`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(platform),
+  });
+  return handleResponse(response);
 }
 
-// List all platforms
-export async function listPlatforms(): Promise<any[]> {
-  try {
-    const response = await fetch(`${API_URL}/platforms`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+export async function listPlatforms(): Promise<PlatformItem[]> {
+  const response = await fetch(`${API_URL}/platforms`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return handleResponse<PlatformItem[]>(response);
+}
 
-    if (!response.ok) {
-      throw new Error(`Failed to list platforms: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('List platforms error:', error);
-    throw error;
-  }
+export async function deletePlatform(platformId: string, token: string): Promise<{ message: string; id: string }> {
+  const response = await fetch(`${API_URL}/platforms/${platformId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  return handleResponse<{ message: string; id: string }>(response);
 }
