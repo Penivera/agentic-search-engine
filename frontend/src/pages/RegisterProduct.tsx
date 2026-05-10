@@ -27,7 +27,7 @@ export default function RegisterProduct() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      navigate("/login?redirect=/register")
+      navigate("/connect", { state: { from: { pathname: "/register" } } })
     }
   }, [isLoading, isAuthenticated, navigate])
 

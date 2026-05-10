@@ -14,7 +14,7 @@ from app.core.config import settings
 
 
 _redis_client: Redis | None = None
-_otp_fallback_store: dict[str, tuple[str, int]] = {}
+_nonce_fallback_store: dict[str, tuple[str, int]] = {}
 _blacklist_fallback_store: dict[str, int] = {}
 logger = logging.getLogger(__name__)
 
@@ -25,9 +25,9 @@ def _unix_now() -> int:
 
 def _purge_expired_fallbacks() -> None:
     now = _unix_now()
-    for key, (_, expires_at) in list(_otp_fallback_store.items()):
+    for key, (_, expires_at) in list(_nonce_fallback_store.items()):
         if expires_at <= now:
-            _otp_fallback_store.pop(key, None)
+            _nonce_fallback_store.pop(key, None)
     for key, expires_at in list(_blacklist_fallback_store.items()):
         if expires_at <= now:
             _blacklist_fallback_store.pop(key, None)
@@ -40,18 +40,10 @@ def get_redis_client() -> Redis:
     return _redis_client
 
 
-def _otp_key(email: str) -> str:
-    return f"otp:verify:{email.lower()}"
 
 
-def _hash_otp(email: str, otp_code: str) -> str:
-    # Bind OTP hash to email and secret to prevent cross-account replay.
-    raw = f"{email.lower()}:{otp_code}".encode("utf-8")
-    secret = settings.JWT_SECRET_KEY.encode("utf-8")
-    return hmac.new(secret, raw, hashlib.sha256).hexdigest()
 
-
-def create_access_token(user_id: str, email: str) -> tuple[str, datetime]:
+def create_access_token(user_id: str, wallet_address: str) -> tuple[str, datetime]:
     expires_at = datetime.now(timezone.utc) + timedelta(
         minutes=settings.JWT_EXPIRE_MINUTES
     )
@@ -59,7 +51,7 @@ def create_access_token(user_id: str, email: str) -> tuple[str, datetime]:
 
     payload = {
         "sub": user_id,
-        "email": email,
+        "wallet_address": wallet_address,
         "jti": jti,
         "exp": expires_at,
         "iat": datetime.now(timezone.utc),
@@ -71,27 +63,26 @@ def create_access_token(user_id: str, email: str) -> tuple[str, datetime]:
     return token, expires_at
 
 
-def generate_otp_code(length: int = 6) -> str:
-    digits = "0123456789"
-    return "".join(secrets.choice(digits) for _ in range(length))
+def generate_nonce() -> str:
+    return secrets.token_urlsafe(32)
 
+def _nonce_key(wallet_address: str) -> str:
+    return f"nonce:{wallet_address}"
 
-async def store_verification_otp(email: str, otp_code: str, ttl_seconds: int) -> None:
-    key = _otp_key(email)
-    value = _hash_otp(email, otp_code)
+async def store_nonce(wallet_address: str, nonce: str, ttl_seconds: int) -> None:
+    key = _nonce_key(wallet_address)
     try:
         redis = get_redis_client()
-        await redis.setex(key, ttl_seconds, value)
+        await redis.setex(key, ttl_seconds, nonce)
         return
     except Exception:
-        logger.warning("Redis unavailable while storing OTP; using in-memory fallback")
+        logger.warning("Redis unavailable while storing nonce; using in-memory fallback")
 
     _purge_expired_fallbacks()
-    _otp_fallback_store[key] = (value, _unix_now() + ttl_seconds)
+    _nonce_fallback_store[key] = (nonce, _unix_now() + ttl_seconds)
 
-
-async def verify_stored_otp(email: str, otp_code: str) -> bool:
-    key = _otp_key(email)
+async def verify_nonce(wallet_address: str, nonce: str) -> bool:
+    key = _nonce_key(wallet_address)
     stored = None
 
     try:
@@ -99,30 +90,28 @@ async def verify_stored_otp(email: str, otp_code: str) -> bool:
         stored = await redis.get(key)
     except Exception:
         logger.warning(
-            "Redis unavailable while verifying OTP; using in-memory fallback"
+            "Redis unavailable while verifying nonce; using in-memory fallback"
         )
 
     if stored is None:
         _purge_expired_fallbacks()
-        fallback = _otp_fallback_store.get(key)
+        fallback = _nonce_fallback_store.get(key)
         stored = fallback[0] if fallback else None
 
     if not stored:
         return False
 
-    candidate = _hash_otp(email, otp_code)
-    return hmac.compare_digest(stored, candidate)
+    return secrets.compare_digest(stored, nonce)
 
-
-async def clear_verification_otp(email: str) -> None:
-    key = _otp_key(email)
+async def clear_nonce(wallet_address: str) -> None:
+    key = _nonce_key(wallet_address)
     try:
         redis = get_redis_client()
         await redis.delete(key)
     except Exception:
-        logger.warning("Redis unavailable while clearing OTP; using in-memory fallback")
+        logger.warning("Redis unavailable while clearing nonce; using in-memory fallback")
 
-    _otp_fallback_store.pop(key, None)
+    _nonce_fallback_store.pop(key, None)
 
 
 def decode_access_token(token: str) -> dict[str, Any]:

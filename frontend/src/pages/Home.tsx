@@ -26,16 +26,18 @@ export default function Home() {
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         {isAuthenticated ? (
           <>
-            <span className="text-xs text-muted-foreground hidden sm:inline">{user?.email}</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline font-mono">
+              {user?.wallet_address ? `${user.wallet_address.slice(0, 4)}...${user.wallet_address.slice(-4)}` : ""}
+            </span>
             <Button variant="outline" size="sm" onClick={() => navigate("/dashboard")} className="gap-1.5">
               <LayoutDashboard className="size-3.5" />
               <span className="hidden sm:inline">Dashboard</span>
             </Button>
           </>
         ) : (
-          <Button variant="outline" size="sm" onClick={() => navigate("/login")} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={() => navigate("/connect")} className="gap-1.5">
             <LogIn className="size-3.5" />
-            Sign In
+            Connect Wallet
           </Button>
         )}
         <ThemeToggle />

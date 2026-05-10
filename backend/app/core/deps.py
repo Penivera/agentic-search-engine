@@ -53,7 +53,7 @@ IngestAuthDep = Annotated[None, Depends(require_ingest_token)]
 
 class TokenUser(BaseModel):
     id: str
-    email: EmailStr
+    wallet_address: str
 
 
 async def get_current_user(
@@ -74,9 +74,9 @@ async def get_current_user(
         )
 
     sub = payload.get("sub")
-    email = payload.get("email")
+    wallet_address = payload.get("wallet_address")
     jti = payload.get("jti")
-    if not sub or not email or not jti:
+    if not sub or not wallet_address or not jti:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session token",
@@ -96,7 +96,7 @@ async def get_current_user(
             detail="Invalid or expired session token",
         )
 
-    return TokenUser(id=str(user_id), email=email)
+    return TokenUser(id=str(user_id), wallet_address=wallet_address)
 
 
 CurrentUserDep = Annotated[TokenUser, Depends(get_current_user)]
@@ -114,9 +114,9 @@ async def get_optional_user(
         return None
 
     sub = payload.get("sub")
-    email = payload.get("email")
+    wallet_address = payload.get("wallet_address")
     jti = payload.get("jti")
-    if not sub or not email or not jti:
+    if not sub or not wallet_address or not jti:
         return None
 
     if await is_token_blacklisted(jti):
@@ -127,7 +127,7 @@ async def get_optional_user(
     except (ValueError, TypeError):
         return None
 
-    return TokenUser(id=str(user_id), email=email)
+    return TokenUser(id=str(user_id), wallet_address=wallet_address)
 
 
 OptionalUserDep = Annotated[TokenUser | None, Depends(get_optional_user)]

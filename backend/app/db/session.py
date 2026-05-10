@@ -53,11 +53,10 @@ async def init_db():
         try:
             await conn.run_sync(Base.metadata.create_all)
         except Exception as exc:
-            # Concurrent replicas can race on CREATE TABLE during startup.
             msg = str(exc).lower()
             if not ("duplicate" in msg or "already exists" in msg):
                 raise
-        await conn.run_sync(_ensure_users_columns)
+        await conn.run_sync(_ensure_users_table)
         await conn.run_sync(_ensure_platforms_columns)
         await conn.run_sync(_ensure_skills_embeddings_columns)
 
@@ -71,20 +70,17 @@ def get_db_startup_error() -> str | None:
     return _db_startup_error
 
 
-def _ensure_users_columns(sync_conn) -> None:
+def _ensure_users_table(sync_conn) -> None:
+    from app.models.database import User
     inspector = inspect(sync_conn)
     table_names = inspector.get_table_names()
     if "users" not in table_names:
         return
 
     existing_columns = {col["name"] for col in inspector.get_columns("users")}
-    if "is_verified" not in existing_columns:
-        sync_conn.execute(
-            text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0 NOT NULL")
-        )
-
-    if "verified_at" not in existing_columns:
-        sync_conn.execute(text("ALTER TABLE users ADD COLUMN verified_at TIMESTAMP"))
+    if "wallet_address" not in existing_columns:
+        sync_conn.execute(text("DROP TABLE users"))
+        User.__table__.create(sync_conn)
 
 
 def _ensure_platforms_columns(sync_conn) -> None:

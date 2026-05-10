@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import hashlib
-import secrets
 from typing import Any
+import base58
+from nacl.signing import VerifyKey
+from nacl.exceptions import BadSignatureError
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 import jwt
@@ -16,215 +17,81 @@ from app.core.deps import CurrentUserDep, SessionDep, BearerCredentialsDep
 from app.models.database import User
 from app.services.auth_tokens import (
     blacklist_token,
-    clear_verification_otp,
     create_access_token,
     decode_access_token,
-    generate_otp_code,
-    store_verification_otp,
-    verify_stored_otp,
+    generate_nonce,
+    store_nonce,
+    verify_nonce,
+    clear_nonce,
 )
-from app.services.mailer import EmailDeliveryError, send_verification_otp_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
+class VerifyRequest(BaseModel):
+    wallet_address: str = Field(min_length=32, max_length=44)
+    signature: str
+    nonce: str
 
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=8, max_length=128)
-
-
-class VerifyOtpRequest(BaseModel):
-    email: EmailStr
-    otp_code: str = Field(min_length=4, max_length=10)
-
-
-class ResendOtpRequest(BaseModel):
-    email: EmailStr
-
-
-def _otp_response_base(email: str, otp_code: str) -> dict[str, Any]:
-    data: dict[str, Any] = {
-        "message": "Verification code sent",
-        "verification_required": True,
-        "email": email.lower(),
-        "otp_expires_in_seconds": settings.OTP_EXPIRE_MINUTES * 60,
-    }
-    if settings.OTP_DEBUG_EXPOSE_CODE:
-        data["dev_otp"] = otp_code
-    return data
-
-
-async def _issue_and_store_otp(email: str) -> str:
-    otp_code = generate_otp_code()
-    await store_verification_otp(
-        email=email,
-        otp_code=otp_code,
-        ttl_seconds=max(60, settings.OTP_EXPIRE_MINUTES * 60),
+@router.get("/nonce")
+async def get_nonce(wallet_address: str) -> dict[str, Any]:
+    nonce = generate_nonce()
+    await store_nonce(
+        wallet_address=wallet_address,
+        nonce=nonce,
+        ttl_seconds=max(60, settings.NONCE_EXPIRE_MINUTES * 60),
     )
-
-    try:
-        await send_verification_otp_email(email, otp_code)
-    except EmailDeliveryError as exc:
-        # Keep local/dev and debug deployments usable when SMTP is unavailable.
-        if not settings.OTP_DEBUG_EXPOSE_CODE:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Failed to deliver OTP email: {exc}",
-            )
-
-    return otp_code
+    return {"nonce": nonce}
 
 
-def _hash_password(password: str, salt: str) -> str:
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000
-    )
-    return digest.hex()
-
-
-def _build_password_hash(password: str) -> str:
-    salt = secrets.token_hex(16)
-    digest = _hash_password(password, salt)
-    return f"{salt}:{digest}"
-
-
-def _verify_password(password: str, stored_hash: str) -> bool:
-    try:
-        salt, digest = stored_hash.split(":", 1)
-    except ValueError:
-        return False
-
-    expected = _hash_password(password, salt)
-    return secrets.compare_digest(expected, digest)
-
-
-@router.post("/register")
-async def register_user(
-    payload: RegisterRequest, session: SessionDep
-) -> dict[str, Any]:
-    normalized_email = payload.email.lower()
-    user = None
-    for attempt in range(2):
-        try:
-            existing = await session.execute(
-                select(User).filter(User.email == normalized_email)
-            )
-            user = existing.scalars().first()
-            break
-        except DBAPIError:
-            await session.rollback()
-            if attempt == 1:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Database temporarily unavailable. Please retry.",
-                )
-        except SQLAlchemyError:
-            await session.rollback()
-            if attempt == 1:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Database temporarily unavailable. Please retry.",
-                )
-
-    if user and user.is_verified and settings.AUTH_REQUIRE_OTP:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email is already registered",
-        )
-
-    if user:
-        # Allow re-register for unverified accounts and rotate password hash.
-        user.password_hash = _build_password_hash(payload.password)
-        user.is_verified = not settings.AUTH_REQUIRE_OTP
-        user.verified_at = (
-            datetime.now(timezone.utc).replace(tzinfo=None)
-            if not settings.AUTH_REQUIRE_OTP
-            else None
-        )
-    else:
-        user = User(
-            email=normalized_email,
-            password_hash=_build_password_hash(payload.password),
-            is_verified=not settings.AUTH_REQUIRE_OTP,
-            verified_at=(
-                datetime.now(timezone.utc).replace(tzinfo=None)
-                if not settings.AUTH_REQUIRE_OTP
-                else None
-            ),
-        )
-        session.add(user)
-
-    await session.flush()
-    user_id = str(user.id)
-    user_email = user.email
-
-    for attempt in range(2):
-        try:
-            await session.commit()
-            break
-        except DBAPIError:
-            await session.rollback()
-            if attempt == 1:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Database temporarily unavailable. Please retry.",
-                )
-        except SQLAlchemyError:
-            await session.rollback()
-            if attempt == 1:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Database temporarily unavailable. Please retry.",
-                )
-    if not settings.AUTH_REQUIRE_OTP:
-        token, expires_at = create_access_token(user_id, user_email)
-        return {
-            "message": "Registered successfully",
-            "verification_required": False,
-            "access_token": token,
-            "token_type": "bearer",
-            "expires_at": expires_at.isoformat(),
-            "user": {
-                "id": user_id,
-                "email": user_email,
-            },
-        }
-
-    otp_code = await _issue_and_store_otp(normalized_email)
-    return _otp_response_base(normalized_email, otp_code)
-
-
-@router.post("/verify-otp")
-async def verify_otp(payload: VerifyOtpRequest, session: SessionDep) -> dict[str, Any]:
-    normalized_email = payload.email.lower()
-    result = await session.execute(select(User).filter(User.email == normalized_email))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    if not await verify_stored_otp(normalized_email, payload.otp_code):
+@router.post("/verify")
+async def verify_wallet(payload: VerifyRequest, session: SessionDep) -> dict[str, Any]:
+    # 1. Verify the nonce
+    if not await verify_nonce(payload.wallet_address, payload.nonce):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired OTP code",
+            detail="Invalid or expired nonce",
         )
 
+    # 2. Verify the Ed25519 signature
+    try:
+        pubkey_bytes = base58.b58decode(payload.wallet_address)
+        verify_key = VerifyKey(pubkey_bytes)
+        # The message format follows standard Solana SIWS (or plain message)
+        message = f"Sign this message to authenticate with ASE. Nonce: {payload.nonce}".encode("utf-8")
+        signature_bytes = base58.b58decode(payload.signature)
+        verify_key.verify(message, signature_bytes)
+    except (ValueError, BadSignatureError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid signature",
+        )
+
+    # 3. Mark nonce as used
+    await clear_nonce(payload.wallet_address)
+
+    # 4. Find or create user
+    try:
+        result = await session.execute(
+            select(User).filter(User.wallet_address == payload.wallet_address)
+        )
+        user = result.scalars().first()
+        
+        if not user:
+            user = User(wallet_address=payload.wallet_address)
+            session.add(user)
+            await session.commit()
+    except (DBAPIError, SQLAlchemyError):
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database temporarily unavailable",
+        )
+
+    # 5. Issue JWT
     user_id = str(user.id)
-    user_email = user.email
-    user.is_verified = True
-    user.verified_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    await session.commit()
-
-    await clear_verification_otp(normalized_email)
-
-    token, expires_at = create_access_token(user_id, user_email)
+    token, expires_at = create_access_token(user_id, payload.wallet_address)
 
     return {
         "access_token": token,
@@ -232,59 +99,7 @@ async def verify_otp(payload: VerifyOtpRequest, session: SessionDep) -> dict[str
         "expires_at": expires_at.isoformat(),
         "user": {
             "id": user_id,
-            "email": user_email,
-        },
-    }
-
-
-@router.post("/resend-otp")
-async def resend_otp(payload: ResendOtpRequest, session: SessionDep) -> dict[str, Any]:
-    normalized_email = payload.email.lower()
-    result = await session.execute(select(User).filter(User.email == normalized_email))
-    user = result.scalars().first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-
-    if user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email is already verified",
-        )
-
-    otp_code = await _issue_and_store_otp(normalized_email)
-    return _otp_response_base(normalized_email, otp_code)
-
-
-@router.post("/login")
-async def login_user(payload: LoginRequest, session: SessionDep) -> dict[str, Any]:
-    result = await session.execute(
-        select(User).filter(User.email == payload.email.lower())
-    )
-    user = result.scalars().first()
-    if not user or not _verify_password(payload.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-    if settings.AUTH_REQUIRE_OTP and not user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Verify OTP first.",
-        )
-
-    token, expires_at = create_access_token(str(user.id), user.email)
-
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "expires_at": expires_at.isoformat(),
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
+            "wallet_address": payload.wallet_address,
         },
     }
 
@@ -293,7 +108,7 @@ async def login_user(payload: LoginRequest, session: SessionDep) -> dict[str, An
 async def get_me(current_user: CurrentUserDep) -> dict[str, Any]:
     return {
         "id": str(current_user.id),
-        "email": current_user.email,
+        "wallet_address": current_user.wallet_address,
     }
 
 

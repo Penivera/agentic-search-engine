@@ -12,10 +12,7 @@ class User(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, default=uuid.uuid4, unique=True, nullable=False
     )
-    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(128), nullable=False)
-    is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)
-    verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    wallet_address: Mapped[str] = mapped_column(String(44), unique=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
     )

@@ -28,18 +28,19 @@ export interface PlatformPayload {
 
 export interface AuthUser {
   id: string;
-  email: string;
+  wallet_address: string;
 }
 
 export interface AuthResponse {
   message: string;
-  verification_required: boolean;
   access_token?: string;
   token_type?: string;
   expires_at?: string;
   user?: AuthUser;
-  dev_otp?: string;
-  email?: string;
+}
+
+export interface NonceResponse {
+  nonce: string;
 }
 
 export interface PlatformItem {
@@ -81,20 +82,19 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 // ─── Auth ────────────────────────────────────────────────────
 
-export async function registerUser(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/auth/register`, {
-    method: 'POST',
+export async function getNonce(walletAddress: string): Promise<NonceResponse> {
+  const response = await fetch(`${API_URL}/auth/nonce?wallet_address=${encodeURIComponent(walletAddress)}`, {
+    method: 'GET',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
   });
-  return handleResponse<AuthResponse>(response);
+  return handleResponse<NonceResponse>(response);
 }
 
-export async function loginUser(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/auth/login`, {
+export async function verifyWallet(walletAddress: string, signature: string, nonce: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ wallet_address: walletAddress, signature, nonce }),
   });
   return handleResponse<AuthResponse>(response);
 }

@@ -19,7 +19,7 @@ export default function Dashboard() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      navigate("/login?redirect=/dashboard")
+      navigate("/connect", { state: { from: { pathname: "/dashboard" } } })
     }
   }, [authLoading, isAuthenticated, navigate])
 
@@ -87,7 +87,9 @@ export default function Dashboard() {
             <ArrowLeft className="size-4" /> Back
           </Button>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:inline">{user?.email}</span>
+            <span className="text-sm text-muted-foreground hidden sm:inline font-mono">
+              {user?.wallet_address ? `${user.wallet_address.slice(0, 4)}...${user.wallet_address.slice(-4)}` : ""}
+            </span>
             <Button variant="outline" size="sm" onClick={handleLogout}>
               Sign Out
             </Button>

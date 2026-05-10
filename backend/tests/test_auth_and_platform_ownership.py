@@ -1,12 +1,13 @@
 import asyncio
 import uuid
+import base58
+from nacl.signing import SigningKey
 
 from fastapi.testclient import TestClient
 import pytest
 
 from app.db.session import init_db
 from app.main import app
-from app.core.config import settings
 from app.services import auth_tokens
 
 
@@ -30,59 +31,60 @@ async def _noop_background_crawl_task(
     return None
 
 
-async def _noop_send_verification_email(to_email: str, otp_code: str) -> None:
-    return None
+@pytest.fixture(autouse=True)
+def patch_redis_client(monkeypatch):
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(auth_tokens, "get_redis_client", lambda: fake_redis)
+    return fake_redis
 
 
-def _register_user(
-    client: TestClient, email: str, password: str = "password123"
-) -> dict:
-    register_response = client.post(
-        "/api/auth/register",
-        json={"email": email, "password": password},
+def _generate_wallet():
+    # generate a random signing key
+    signing_key = SigningKey.generate()
+    pubkey = signing_key.verify_key
+    wallet_address = base58.b58encode(pubkey.encode()).decode("utf-8")
+    return signing_key, wallet_address
+
+
+def _sign_in_wallet(client: TestClient, signing_key: SigningKey, wallet_address: str) -> dict:
+    # 1. Get nonce
+    nonce_resp = client.get(f"/api/auth/nonce?wallet_address={wallet_address}")
+    assert nonce_resp.status_code == 200
+    nonce = nonce_resp.json()["nonce"]
+    
+    # 2. Sign message
+    message = f"Sign this message to authenticate with ASE. Nonce: {nonce}".encode("utf-8")
+    signed = signing_key.sign(message)
+    signature = base58.b58encode(signed.signature).decode("utf-8")
+    
+    # 3. Verify
+    verify_resp = client.post(
+        "/api/auth/verify",
+        json={
+            "wallet_address": wallet_address,
+            "signature": signature,
+            "nonce": nonce
+        }
     )
-    assert register_response.status_code == 200
-    register_data = register_response.json()
-    if register_data.get("access_token"):
-        return register_data
-
-    assert register_data.get("verification_required") is True
-    assert "dev_otp" in register_data
-
-    verify_response = client.post(
-        "/api/auth/verify-otp",
-        json={"email": email, "otp_code": register_data["dev_otp"]},
-    )
-    assert verify_response.status_code == 200
-    return verify_response.json()
+    assert verify_resp.status_code == 200
+    return verify_resp.json()
 
 
 def _auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-@pytest.fixture(autouse=True)
-def patch_redis_client(monkeypatch):
-    fake_redis = FakeRedis()
-    monkeypatch.setattr(auth_tokens, "get_redis_client", lambda: fake_redis)
-    monkeypatch.setattr(
-        "app.routers.auth.send_verification_otp_email",
-        _noop_send_verification_email,
-    )
-    return fake_redis
-
-
-def test_auth_register_me_and_logout_revokes_token():
+def test_auth_verify_me_and_logout_revokes_token():
     asyncio.run(init_db())
 
     with TestClient(app) as client:
-        email = f"auth-{uuid.uuid4()}@example.com"
-        auth = _register_user(client, email)
+        signing_key, wallet_address = _generate_wallet()
+        auth = _sign_in_wallet(client, signing_key, wallet_address)
         token = auth["access_token"]
 
         me_before_logout = client.get("/api/auth/me", headers=_auth_headers(token))
         assert me_before_logout.status_code == 200
-        assert me_before_logout.json()["email"] == email
+        assert me_before_logout.json()["wallet_address"] == wallet_address
 
         logout = client.post("/api/auth/logout", headers=_auth_headers(token))
         assert logout.status_code == 200
@@ -91,32 +93,10 @@ def test_auth_register_me_and_logout_revokes_token():
         assert me_after_logout.status_code == 401
 
 
-def test_login_requires_verified_user():
-    asyncio.run(init_db())
-
-    with TestClient(app) as client:
-        email = f"pending-{uuid.uuid4()}@example.com"
-        register_response = client.post(
-            "/api/auth/register",
-            json={"email": email, "password": "password123"},
-        )
-        assert register_response.status_code == 200
-
-        login_response = client.post(
-            "/api/auth/login",
-            json={"email": email, "password": "password123"},
-        )
-        if settings.AUTH_REQUIRE_OTP:
-            assert login_response.status_code == 403
-        else:
-            assert login_response.status_code == 200
-
-
 def test_platform_create_requires_auth(monkeypatch):
     asyncio.run(init_db())
 
     import app.routers.platforms as platforms_router
-
     monkeypatch.setattr(
         platforms_router,
         "background_crawl_task",
@@ -135,8 +115,8 @@ def test_platform_create_requires_auth(monkeypatch):
         )
         assert anonymous.status_code == 401
 
-        email = f"owner-{uuid.uuid4()}@example.com"
-        auth = _register_user(client, email)
+        signing_key, wallet_address = _generate_wallet()
+        auth = _sign_in_wallet(client, signing_key, wallet_address)
 
         created = client.post(
             "/api/platforms/",
@@ -159,7 +139,6 @@ def test_platform_update_restricted_to_owner(monkeypatch):
     asyncio.run(init_db())
 
     import app.routers.platforms as platforms_router
-
     monkeypatch.setattr(
         platforms_router,
         "background_crawl_task",
@@ -167,8 +146,11 @@ def test_platform_update_restricted_to_owner(monkeypatch):
     )
 
     with TestClient(app) as client:
-        owner_auth = _register_user(client, f"owner-{uuid.uuid4()}@example.com")
-        other_auth = _register_user(client, f"other-{uuid.uuid4()}@example.com")
+        owner_key, owner_wallet = _generate_wallet()
+        other_key, other_wallet = _generate_wallet()
+        
+        owner_auth = _sign_in_wallet(client, owner_key, owner_wallet)
+        other_auth = _sign_in_wallet(client, other_key, other_wallet)
 
         created = client.post(
             "/api/platforms/",

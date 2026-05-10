@@ -4,17 +4,18 @@ import Home from "../src/pages/Home";
 import Agent from "../src/pages/Agent";
 import RegisterProduct from "../src/pages/RegisterProduct";
 import SearchResults from "../src/pages/SearchResults";
-import Login from "../src/pages/Login";
-import Signup from "../src/pages/Signup";
+import ConnectWallet from "../src/pages/ConnectWallet";
 import Dashboard from "../src/pages/Dashboard";
 import { ThemeProvider } from "./context/ThemeProvider";
 import { AuthProvider } from "./context/AuthContext";
+import { WalletProvider } from "./context/WalletProvider";
 
 
 export default function App() {
   return (
     <ThemeProvider>
-    <AuthProvider>
+    <WalletProvider>
+      <AuthProvider>
     <BrowserRouter>
       <Routes>
         {/* Landing Page: Dual interface - "I'm an Agent" or "I'm a Human" */}
@@ -32,16 +33,16 @@ export default function App() {
         {/* Search Results: Display query results */}
         <Route path="/search" element={<SearchResults />} />
 
-        {/* Auth Pages */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        {/* Auth Page */}
+        <Route path="/connect" element={<ConnectWallet />} />
 
         {/* User Dashboard: Manage platforms */}
         <Route path="/dashboard" element={<Dashboard />} />
         
       </Routes>
     </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </WalletProvider>
     </ThemeProvider>
   );
 }

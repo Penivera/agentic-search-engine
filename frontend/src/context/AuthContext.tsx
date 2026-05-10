@@ -1,4 +1,4 @@
-import {
+import React, {
   createContext,
   useContext,
   useEffect,
@@ -6,9 +6,11 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import bs58 from "bs58";
 import {
-  registerUser as apiRegister,
-  loginUser as apiLogin,
+  getNonce,
+  verifyWallet,
   logoutUser as apiLogout,
   getMe,
   type AuthUser,
@@ -24,8 +26,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  authenticateWithWallet: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -49,6 +50,8 @@ export function useAuth(): AuthContextValue {
 // ─── Provider ────────────────────────────────────────────────
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { publicKey, signMessage, disconnect, connected } = useWallet();
+
   const [state, setState] = useState<AuthState>({
     user: null,
     token: null,
@@ -56,18 +59,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: true,
   });
 
-  // Persist token + user to localStorage
   const persist = useCallback((token: string, user: AuthUser) => {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     setState({ user, token, isAuthenticated: true, isLoading: false });
   }, []);
 
-  const clear = useCallback(() => {
+  const clear = useCallback(async () => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setState({ user: null, token: null, isAuthenticated: false, isLoading: false });
-  }, []);
+    if (connected) {
+      try {
+        await disconnect();
+      } catch {
+        // Ignore disconnect errors
+      }
+    }
+  }, [connected, disconnect]);
 
   // On mount: rehydrate from localStorage and validate token
   useEffect(() => {
@@ -79,7 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Validate with backend
     getMe(storedToken)
       .then((user) => {
         persist(storedToken, user);
@@ -91,30 +99,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ─── Actions ─────────────────────────────────────────────
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const res = await apiLogin(email, password);
-      if (!res.access_token || !res.user) {
-        throw new Error(res.message || "Login failed");
-      }
-      persist(res.access_token, res.user);
-    },
-    [persist],
-  );
+  const authenticateWithWallet = useCallback(async () => {
+    if (!publicKey || !signMessage) {
+      throw new Error("Wallet not connected or does not support message signing");
+    }
 
-  const register = useCallback(
-    async (email: string, password: string) => {
-      const res = await apiRegister(email, password);
-      if (res.verification_required) {
-        throw new Error("Email verification required. Please check your email.");
-      }
-      if (!res.access_token || !res.user) {
-        throw new Error(res.message || "Registration failed");
-      }
-      persist(res.access_token, res.user);
-    },
-    [persist],
-  );
+    const walletAddress = publicKey.toBase58();
+
+    // 1. Fetch nonce
+    const { nonce } = await getNonce(walletAddress);
+
+    // 2. Sign message
+    const message = `Sign this message to authenticate with ASE. Nonce: ${nonce}`;
+    const messageBytes = new TextEncoder().encode(message);
+    
+    const signatureBytes = await signMessage(messageBytes);
+    const signature = bs58.encode(signatureBytes);
+
+    // 3. Verify on backend
+    const res = await verifyWallet(walletAddress, signature, nonce);
+    
+    if (!res.access_token || !res.user) {
+      throw new Error(res.message || "Authentication failed");
+    }
+
+    // 4. Persist
+    persist(res.access_token, res.user);
+  }, [publicKey, signMessage, persist]);
 
   const logout = useCallback(async () => {
     if (state.token) {
@@ -124,15 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Logout on backend failed — still clear locally
       }
     }
-    clear();
+    await clear();
   }, [state.token, clear]);
 
   return (
     <AuthContext.Provider
       value={{
         ...state,
-        login,
-        register,
+        authenticateWithWallet,
         logout,
       }}
     >
